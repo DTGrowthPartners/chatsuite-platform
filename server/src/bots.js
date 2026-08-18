@@ -12,10 +12,14 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
+import { RAIZ_APP } from './config.js';
 import { correr } from './provision.js';
 import { actualizar, obtener, rutaTenant, leer as leerEstado } from './store.js';
 
-export const MOTOR = process.env.MOTOR_BOT || '/home/ubuntu/chatsuite-bot';
+// El motor vive en este mismo repo: panel y motor cambian juntos (el panel
+// escribe el perfil.json que el motor lee y llama a su API para el simulador),
+// asi que versionarlos aparte solo produce desincronizacion.
+export const MOTOR = process.env.MOTOR_BOT || path.resolve(RAIZ_APP, '..', 'bot-engine');
 export const PYTHON = path.join(MOTOR, 'venv', 'bin', 'python');
 
 // Rango propio, por encima del de los Chatsuite (3210-3299) para que no se

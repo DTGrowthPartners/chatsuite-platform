@@ -1,0 +1,8 @@
+[
+  { "id": "pc-01", "nombre": "Portátil Lenovo IdeaPad 3", "precio": 2450000, "imagen": "pc-01.jpg",
+    "procesador": "Ryzen 5", "ram": "16GB", "disco": "512GB SSD", "garantia": "1 año" },
+  { "id": "pc-02", "nombre": "Portátil HP Victus Gamer", "precio": 3890000, "imagen": "pc-02.jpg",
+    "procesador": "Core i5 12va", "ram": "16GB", "video": "RTX 3050", "garantia": "1 año" },
+  { "id": "mon-01", "nombre": "Monitor Samsung 24\" 75Hz", "precio": 549000, "imagen": "mon-01.jpg",
+    "tamano": "24 pulgadas", "panel": "IPS" }
+]

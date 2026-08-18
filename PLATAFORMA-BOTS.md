@@ -166,7 +166,7 @@ Por orden de importancia real, no de vistosidad:
 
 | Fase | Qué | Estado |
 |---|---|---|
-| 1 | Motor con módulos + `perfil.json` + simulador | ✅ **Hecho 2026-08-18** — `/home/ubuntu/chatsuite-bot/`, probado punta a punta |
+| 1 | Motor con módulos + `perfil.json` + simulador | ✅ **Hecho 2026-08-18** — `bot-engine/` (en este repo), probado punta a punta |
 | 2 | Pantallas del panel sobre el motor | ✅ **Hecho 2026-08-18** — simulador, persona, negocio, catálogo, respuestas, domicilios, equipo y operación |
 | 3 | Estrenarlo con un cliente de `tienda` | ⬜ Tu Bodega no se toca: está vivo |
 | 4 | Alta de Evolution + QR desde el panel | ✅ **Hecho 2026-08-18** — un Evolution por cliente, QR en el panel, enlace del bot al inbox |
@@ -174,7 +174,7 @@ Por orden de importancia real, no de vistosidad:
 | 6 | Módulos `citas`, `socios`, `tareas` | ⬜ según qué cliente entre primero |
 
 El motor ya soporta los dos canales (`canal.tipo`), el ciclo de vida
-borrador→prueba→producción y el simulador. Ver `chatsuite-bot/README.md`.
+borrador→prueba→producción y el simulador. Ver `bot-engine/README.md`.
 
 ## Cómo se le da bot a un cliente (desde el panel)
 

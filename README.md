@@ -17,9 +17,11 @@ El diseño completo y las decisiones están en
 [`PLATAFORMA-BOTS.md`](PLATAFORMA-BOTS.md); el estado actual, en
 [`ESTADO.md`](ESTADO.md).
 
-> **El motor de los bots vive aparte**, en `/home/ubuntu/chatsuite-bot`: es un
-> solo código para todos los clientes y el cliente entra por datos (su
-> `perfil.json`). Este repo trae el panel que lo configura, no el motor.
+> **El motor de los bots vive en `bot-engine/`**, en este mismo repo: es un solo
+> código para todos los clientes y el cliente entra por datos (su `perfil.json`).
+> Está junto al panel a propósito — cambian juntos, y versionarlos aparte solo
+> produce desincronización. Su documentación es
+> [`bot-engine/README.md`](bot-engine/README.md).
 
 ---
 
@@ -49,6 +51,7 @@ Una sola imagen para todos los clientes. Sin build por alta.
 | `server/bin/generar-marca.py` | Logo del cliente -> los 10 assets de marca |
 | `server/panel/` | Panel en React + shadcn/ui (Base UI) + Tailwind v4 + motion |
 | `server/public/` | **Salida del build.** Se borra en cada `npm run panel:build` |
+| `bot-engine/` | **El motor de los bots**: un código, un perfil por cliente |
 | `server/src/bots.js` | Alta y configuración del bot del cliente |
 | `server/src/evolution.js` | Canal de WhatsApp: Evolution por cliente y QR |
 | `instalacion/` | sudoers acotado y la clave del panel (la clave NO se versiona) |
@@ -87,9 +90,15 @@ Desde la tarjeta del cliente:
 ## Primera instalación
 
 ```bash
-npm --prefix server/panel install   # el panel no versiona node_modules
-npm --prefix server run panel:build # genera server/public/
+npm --prefix server/panel install    # el panel no versiona node_modules
+npm --prefix server run panel:build  # genera server/public/
+
+python3 -m venv bot-engine/venv      # el motor tiene su propio entorno
+bot-engine/venv/bin/pip install -r bot-engine/requirements.txt
 ```
+
+El venv **no se versiona** y no se puede copiar de otra máquina: lleva rutas
+absolutas horneadas en `pyvenv.cfg` y en los shebang, así que moverlo lo rompe.
 
 ---
 

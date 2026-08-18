@@ -1,0 +1,7 @@
+[
+  { "zona": "El Poblado", "precio": 8000 },
+  { "zona": "Laureles", "precio": 8000 },
+  { "zona": "Envigado", "precio": 12000 },
+  { "zona": "Bello", "precio": 15000 },
+  { "zona": "Sabaneta", "precio": 0 }
+]

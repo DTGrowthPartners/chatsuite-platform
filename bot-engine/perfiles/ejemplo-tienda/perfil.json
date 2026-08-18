@@ -1,0 +1,130 @@
+{
+  "version": 1,
+  "slug": "ejemplo-tienda",
+  "estado": "borrador",
+  "negocio": {
+    "nombre": "CompuXtreme",
+    "ciudad": "Medellín",
+    "zona_horaria": "America/Bogota",
+    "moneda": "COP",
+    "color": "#0F76D6",
+    "contacto": "compuxtreme.com · WhatsApp 300 000 0000"
+  },
+  "chatsuite": {
+    "inbox_id": null,
+    "contenedor_rails": "chatsuite_ejemplo-tienda-rails-1"
+  },
+  "canal": {
+    "tipo": "evolution",
+    "evolution": {
+      "url": "",
+      "instancia": "ejemplo-tienda"
+    },
+    "cloud_api": {
+      "plantilla_alerta": "",
+      "plantilla_alerta_idioma": "es",
+      "plantilla_reenganche": "",
+      "plantilla_reenganche_idioma": "es"
+    }
+  },
+  "audiencia": "clientes",
+  "modulos": [
+    "tienda"
+  ],
+  "modelo": {
+    "nombre": "claude-sonnet-4-6",
+    "max_tokens": 1000,
+    "max_historial": 30
+  },
+  "persona": {
+    "nombre": "Andrés",
+    "rol": "asesor comercial",
+    "tuteo": true,
+    "emojis": "pocos",
+    "max_lineas": 3,
+    "formato_precio": "$2.450.000",
+    "modo_experto": false,
+    "quien_te_escribe": "Casi todos llegan por publicidad. Vienen preguntando por un equipo puntual o por presupuesto. Algunos compran para su empresa y otros para uso personal: los dos son buenos clientes.",
+    "reglas": [
+      "UNA sola pregunta por mensaje.",
+      "MÁXIMO una pregunta antes de dar el precio. Quien escribe ya viene del anuncio pidiendo información.",
+      "Todo mensaje tuyo termina en una pregunta o en una acción concreta.",
+      "Nunca repitas una frase que ya usaste en ese chat."
+    ],
+    "flujo": "1. Saluda y pregunta para qué va a usar el equipo (una sola pregunta).\n2. Recomienda máximo 2 opciones del catálogo con su precio.\n3. Ofrece mandar las fotos.\n4. Si confirma, pide los datos de entrega y registra el pedido.",
+    "nunca": [
+      "Inventar precios, promociones o especificaciones que no estén en el catálogo.",
+      "Prometer tiempos de entrega sin confirmarlos con el equipo.",
+      "Pedir datos de tarjeta o claves."
+    ],
+    "cuando_escalar": [
+      "El cliente pide hablar con una persona.",
+      "Está molesto, inconforme o pone un reclamo.",
+      "Quiere negociar el precio o condiciones especiales.",
+      "Pregunta por el estado de un pedido ya hecho.",
+      "Te falta información y no está en el catálogo ni en la información del negocio."
+    ]
+  },
+  "operacion": {
+    "horario": {
+      "inicio": 8,
+      "fin": 20,
+      "mensaje_fuera": "ya por hoy cerramos, mañana te respondo temprano"
+    },
+    "ritmo": {
+      "respuesta_min_seg": 15,
+      "respuesta_max_seg": 40,
+      "max_salientes_hora": 80
+    },
+    "pausa_humano_seg": 3600,
+    "mensaje_handoff": "ya te comunico con mi compañero, un momento",
+    "reenganche": {
+      "activo": true,
+      "ventana_dias": 7
+    }
+  },
+  "tienda": {
+    "catalogo": {
+      "fotos_por_tanda": 4
+    },
+    "pdf": {
+      "activo": true,
+      "titulo": "Catálogo CompuXtreme"
+    },
+    "domicilios": {
+      "activo": true,
+      "etiqueta": "zona",
+      "ciudad": "Medellín"
+    }
+  },
+  "etiquetas": [
+    {
+      "nombre": "pedido",
+      "titulo": "📦 Pedidos"
+    },
+    {
+      "nombre": "cotizacion",
+      "titulo": "💬 Cotizaciones"
+    },
+    {
+      "nombre": "domicilio",
+      "titulo": "🛵 Domicilios"
+    },
+    {
+      "nombre": "reclamo",
+      "titulo": "⚠️ Reclamos"
+    },
+    {
+      "nombre": "seguimiento",
+      "titulo": "🔁 Seguimiento"
+    }
+  ],
+  "alertas": {
+    "usar_equipo": true,
+    "numeros_extra": [],
+    "numeros_pregunta": [],
+    "tipos_whatsapp": [
+      "escalada"
+    ]
+  }
+}

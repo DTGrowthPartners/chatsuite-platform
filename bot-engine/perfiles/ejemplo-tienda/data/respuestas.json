@@ -1,0 +1,6 @@
+[
+  { "id": "datos-envio", "titulo": "Datos para el envío", "uso": "datos",
+    "contenido": "Para despachar necesito:\n\nNombre completo\nCédula\nDirección\nBarrio o zona\nTeléfono" },
+  { "id": "garantia", "titulo": "Garantía", "uso": "referencia",
+    "contenido": "Todos los equipos tienen 1 año de garantía directa con la marca." }
+]

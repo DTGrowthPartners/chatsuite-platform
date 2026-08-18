@@ -1,6 +1,19 @@
 # Dependencias
 node_modules/
 
+# El entorno del motor. NO se versiona ni se copia entre máquinas: lleva rutas
+# absolutas horneadas en pyvenv.cfg y en los shebang, así que moverlo lo rompe.
+bot-engine/venv/
+__pycache__/
+*.pyc
+
+# Salida y estado del perfil de ejemplo (los perfiles reales viven en /srv).
+bot-engine/perfiles/*/data/catalogo.pdf
+bot-engine/perfiles/*/data/.pdf-thumbs/
+bot-engine/perfiles/*/data/estado-bot.json
+bot-engine/perfiles/*/data/transcripciones.json
+bot-engine/perfiles/*/data/reenganches.json
+
 # Salida de build del panel. Se regenera con `npm run panel` desde server/,
 # y el propio proceso la borra y la rehace en cada compilación.
 server/public/
