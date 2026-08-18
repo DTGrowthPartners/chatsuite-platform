@@ -327,6 +327,26 @@ async def simular(request: Request):
     }
 
 
+@app.get("/bot/admin/esquema")
+async def admin_esquema():
+    """Qué necesita este bot que exista en Chatsuite: sus etiquetas y sus
+    atributos. Lo consume el panel para crearlos; así agregar un módulo no
+    obliga a tocar el panel."""
+    p = perfil_mod.actual()
+    activos = modulos.activos(p)
+    atributos, vistos = [], set()
+    for m in activos:
+        for a in m.atributos(p):
+            if a.get("clave") and a["clave"] not in vistos:
+                vistos.add(a["clave"])
+                atributos.append(a)
+    return {
+        "etiquetas": [e for e in p.get("etiquetas", []) if e.get("nombre")],
+        "atributos": atributos,
+        "modulos": [m.nombre for m in activos],
+    }
+
+
 @app.get("/bot/simular/prompt")
 async def ver_prompt():
     """El system prompt tal como lo recibe el modelo con el perfil de ahora.

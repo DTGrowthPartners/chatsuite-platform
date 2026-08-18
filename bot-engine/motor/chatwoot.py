@@ -202,3 +202,69 @@ async def etiquetar(conv_id: int, etiquetas: list[str]) -> None:
             json={"labels": sorted(actuales | nuevas)},
         )
         r.raise_for_status()
+
+
+# ── Atributos: los datos del caso, al lado del chat ─────────────────────────
+# Chatwoot los muestra en la barra lateral y —lo importante— se pueden filtrar,
+# así que "pedidos de hoy sin despachar" deja de ser imposible. Es lo que hace
+# que no haga falta ningún panel aparte.
+
+async def atributos_conversacion(conv_id: int, valores: dict) -> bool:
+    """Escribe atributos en la conversación. True si de verdad cambió algo.
+
+    ⚠️ EL BUCLE: `custom_attributes` está en el `list_of_keys` de Conversation,
+    así que escribir re-dispara `conversation_updated` → las automatizaciones
+    del cliente → posiblemente nosotros otra vez. El corte es leer primero y
+    escribir SOLO si algún valor cambió de verdad. Es exactamente el guard que
+    hubo que poner en el puente CAPI de CompuXtreme, donde comparar un campo con
+    la hora actual hacía que nunca cortara.
+
+    Los valores None se ignoran (no se pisa un dato bueno con vacío).
+    """
+    limpios = {k: v for k, v in (valores or {}).items() if v not in (None, "")}
+    if not limpios:
+        return False
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as c:
+        try:
+            r = await c.get(f"{_base()}/conversations/{conv_id}", headers=_headers_lectura())
+            actuales = (r.json() or {}).get("custom_attributes") or {} if r.status_code < 400 else {}
+        except Exception:
+            actuales = {}
+        if all(str(actuales.get(k)) == str(v) for k, v in limpios.items()):
+            return False  # nada nuevo: no se escribe y no se dispara el evento
+        r = await c.post(
+            f"{_base()}/conversations/{conv_id}/custom_attributes",
+            headers=_headers_lectura(),
+            json={"custom_attributes": {**actuales, **limpios}},
+        )
+        r.raise_for_status()
+        return True
+
+
+async def atributos_contacto(conv_id: int, valores: dict) -> bool:
+    """Atributos de la PERSONA, no de la conversación: su plan, su vencimiento.
+
+    Aparecen en todas sus conversaciones, que es lo que se quiere para un socio
+    de gimnasio: el entrenador abre cualquier chat suyo y ve si está al día.
+    """
+    limpios = {k: v for k, v in (valores or {}).items() if v not in (None, "")}
+    if not limpios:
+        return False
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as c:
+        r = await c.get(f"{_base()}/conversations/{conv_id}", headers=_headers_lectura())
+        if r.status_code >= 400:
+            return False
+        contacto = ((r.json() or {}).get("meta") or {}).get("sender") or {}
+        cid = contacto.get("id")
+        if not cid:
+            return False
+        actuales = contacto.get("custom_attributes") or {}
+        if all(str(actuales.get(k)) == str(v) for k, v in limpios.items()):
+            return False
+        r = await c.put(
+            f"{_base()}/contacts/{cid}",
+            headers=_headers_lectura(),
+            json={"custom_attributes": {**actuales, **limpios}},
+        )
+        r.raise_for_status()
+        return True

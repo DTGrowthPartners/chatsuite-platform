@@ -162,6 +162,8 @@ async def responder(
         descartados += [t for t in textos if t.strip()]
 
         resultados, escalar, motivo, etiquetas = [], False, "", []
+        attrs_conv: dict = {}
+        attrs_contacto: dict = {}
         for tu in pedidas:
             usadas.append(tu.name)
             if not simulacion:
@@ -177,14 +179,30 @@ async def responder(
             if salida.escalar:
                 escalar, motivo = True, salida.motivo
             etiquetas += list(salida.etiquetas or [])
+            attrs_conv.update(getattr(salida, "atributos", None) or {})
+            attrs_contacto.update(getattr(salida, "atributos_contacto", None) or {})
             resultados.append({"type": "tool_result", "tool_use_id": tu.id,
                                "content": salida.texto})
 
-        if etiquetas and not simulacion:
-            try:
-                await chatwoot.etiquetar(conv_id, etiquetas)
-            except Exception:
-                log.exception("conv %s: no se pudieron poner las etiquetas %s", conv_id, etiquetas)
+        if not simulacion:
+            if etiquetas:
+                try:
+                    await chatwoot.etiquetar(conv_id, etiquetas)
+                except Exception:
+                    log.exception("conv %s: no se pudieron poner las etiquetas %s", conv_id, etiquetas)
+            # Los atributos son lo que hace que el equipo pueda FILTRAR después
+            # ("pedidos de hoy sin despachar"); que fallen no debe tumbar la
+            # respuesta al cliente.
+            for valores, escribir, que in (
+                (attrs_conv, chatwoot.atributos_conversacion, "de la conversación"),
+                (attrs_contacto, chatwoot.atributos_contacto, "del contacto"),
+            ):
+                if not valores:
+                    continue
+                try:
+                    await escribir(conv_id, valores)
+                except Exception:
+                    log.exception("conv %s: no se pudieron escribir los atributos %s", conv_id, que)
 
         if escalar:
             # `descartados` YA incluye los `textos` de este turno (se acumulan

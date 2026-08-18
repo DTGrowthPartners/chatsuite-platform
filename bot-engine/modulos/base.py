@@ -31,6 +31,10 @@ class Resultado:
     escalar: bool = False
     motivo: str = ""
     etiquetas: list[str] = field(default_factory=list)
+    # Lo que hay que mostrar al lado del chat. El motor los escribe; el handler
+    # no llama a la API, así que en simulación no se toca nada.
+    atributos: dict = field(default_factory=dict)
+    atributos_contacto: dict = field(default_factory=dict)
 
 
 class Modulo:
@@ -47,6 +51,17 @@ class Modulo:
     def etiquetas(self) -> set[str]:
         """Etiquetas que este módulo puede llegar a poner."""
         return set()
+
+    def atributos(self, p) -> list[dict]:
+        """Atributos que este módulo escribe, para que el panel los cree en
+        Chatsuite. Si no existen como definición, Chatwoot guarda el valor pero
+        NO lo muestra en la barra lateral ni deja filtrar por él.
+
+        Cada uno: {clave, titulo, tipo, modelo}
+          tipo   → text | number | date | list | checkbox
+          modelo → conversacion (del caso) | contacto (de la persona)
+        """
+        return []
 
     async def ejecutar(self, tool: str, entrada: dict, ctx: Contexto) -> Resultado | None:
         """None si la tool no es de este módulo."""

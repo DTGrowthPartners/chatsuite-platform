@@ -107,6 +107,24 @@ class Modulo(Base):
     def etiquetas(self) -> set[str]:
         return {"pedido", "cotizacion", "domicilio", "seguimiento"}
 
+    def atributos(self, p) -> list[dict]:
+        """Lo que el equipo necesita ver al lado del chat, y por lo que necesita
+        poder filtrar. Sin esto un pedido solo dejaba una nota privada: se leía,
+        pero no había forma de listar «los pedidos de hoy sin despachar»."""
+        etiqueta_zona = (self._cfg(p).get("domicilios", {}).get("etiqueta") or "zona").capitalize()
+        campos = [
+            {"clave": "pedido_id", "titulo": "Pedido", "tipo": "text", "modelo": "conversacion"},
+            {"clave": "pedido_detalle", "titulo": "Qué pidió", "tipo": "text", "modelo": "conversacion"},
+            {"clave": "pedido_total", "titulo": "Total", "tipo": "number", "modelo": "conversacion"},
+            {"clave": "pedido_estado", "titulo": "Estado del pedido", "tipo": "list",
+             "modelo": "conversacion",
+             "valores": ["nuevo", "confirmado", "despachado", "entregado", "cancelado"]},
+        ]
+        if self._domicilios_activos(p):
+            campos.append({"clave": "pedido_zona", "titulo": etiqueta_zona,
+                           "tipo": "text", "modelo": "conversacion"})
+        return campos
+
     # ── Tools ──────────────────────────────────────────────────────────────
     def tools(self, p) -> list[dict]:
         cfg = self._cfg(p)
@@ -264,6 +282,13 @@ class Modulo(Base):
             return Resultado(
                 texto=f"Pedido registrado con código {codigo}. El equipo ya fue avisado.",
                 etiquetas=etiquetas,
+                atributos={
+                    "pedido_id": codigo,
+                    "pedido_detalle": pedido["detalle"][:200],
+                    "pedido_total": pedido["total"] or None,
+                    "pedido_zona": pedido["zona"] or pedido["ciudad"] or None,
+                    "pedido_estado": "nuevo",
+                },
             )
         except Exception as e:
             log.exception("conv %s: fallo registrando pedido", ctx.conv_id)

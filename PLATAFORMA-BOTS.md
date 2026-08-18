@@ -354,3 +354,72 @@ explica, con el color del cliente.
   `location /` y nginx rechaza duplicados; una regex gana sobre el prefijo sin
   chocar. Se exceptúa `/.well-known/` para que certbot pueda renovar el
   certificado mientras el servicio está suspendido.
+
+
+---
+
+## Cómo se ven los módulos dentro de Chatsuite (2026-08-18)
+
+**Chatsuite es la ventana, no la base de datos.** La verdad de cada módulo vive
+donde le corresponde —el catálogo en el perfil, la agenda en su proveedor, las
+tareas en DTOS— y Chatsuite muestra lo que el agente necesita ver sin salirse de
+la conversación. Es lo que hace que se cumpla la regla de «nada de panel aparte».
+
+### Las cuatro piezas nativas
+
+| Pieza | Para qué | Filtrable |
+|---|---|---|
+| Etiquetas + vistas guardadas | las bandejas de la barra lateral | sí |
+| Atributos de conversación | los datos del caso, barra lateral derecha | **sí** |
+| Atributos de contacto | lo que es de la persona: su plan, su vencimiento | sí |
+| Dashboard App | una pestaña embebida dentro de la conversación | — |
+
+### Cómo cae cada módulo
+
+| Módulo | Bandeja | En la conversación | En el contacto | La verdad vive en |
+|---|---|---|---|---|
+| `tienda` | 📦 Pedidos | pedido, detalle, total, zona, estado | — | `pedidos.json` del perfil |
+| `citas` | 📅 Citas | fecha, servicio, profesional, estado | — | agenda propia o Cal.com |
+| `socios` | 🏋️ Socios | — | plan, vence, estado | padrón del perfil o su sistema |
+| `tareas` | ✅ Tareas | tarea, responsable, estado | — | DTOS |
+
+Ningún módulo necesita una pantalla nueva.
+
+### Cómo se declara
+
+Cada módulo declara sus atributos en `atributos(p)` y los llena devolviéndolos
+en el `Resultado`; el motor los escribe. El panel los crea en Chatsuite
+preguntándole al propio bot por `GET /bot/admin/esquema`, así que **agregar un
+módulo no obliga a tocar el panel**.
+
+- **Sin la definición, el atributo no existe para el usuario**: Chatwoot guarda
+  el valor pero no lo muestra en la barra lateral ni deja filtrar por él. Se ve
+  como si el bot no hubiera escrito nada.
+- ⚠️ **El bucle**: `custom_attributes` está en el `list_of_keys` de
+  `Conversation`, así que escribir re-dispara `conversation_updated` → las
+  automatizaciones del cliente → posiblemente el bot otra vez. El corte es leer
+  primero y escribir **solo si algún valor cambió de verdad**. Es el mismo guard
+  que hubo que poner en el puente CAPI de CompuXtreme, donde comparar un campo
+  contra la hora actual hacía que nunca cortara.
+- Los tipos son un enum de Rails: `text:0, number:1, currency:2, percent:3,
+  link:4, date:5, list:6, checkbox:7`. Verificado contra el Chatsuite real.
+
+## Módulo `citas`: agenda propia o externa
+
+`citas.agenda` = `propia | calcom | agendapro`. El módulo es el mismo; cambia de
+dónde lee la disponibilidad.
+
+**Agenda propia** (por defecto): mismo patrón que el catálogo y el padrón. En el
+perfil van horario de atención, duración del turno, servicios, profesionales y
+excepciones; las citas se guardan en `citas.json`. Sirve para un cliente que hoy
+no tiene nada, y es más simple que integrar un tercero.
+
+**El costo escondido está en quién más toca la agenda.** Si el equipo también
+agenda por teléfono o en mostrador, necesitan ver y mover citas fuera de
+WhatsApp, y eso es una vista de calendario en el panel — trabajo real. Si todo
+entra por WhatsApp, con el perfil basta.
+
+**Los recordatorios son tráfico proactivo.** «Le recuerdo la cita 24 h antes»
+cae fuera de la ventana de 24 h de Cloud API y exige plantilla aprobada. Con
+Evolution no hay problema. Como se arranca con Evolution no bloquea, pero hay
+que preverlo antes de migrar a Cloud API.

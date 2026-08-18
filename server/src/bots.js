@@ -256,7 +256,17 @@ export async function sincronizarEtiquetas(slug, log) {
   const perfil = leerPerfil(slug);
   if (!perfil) throw new Error('este cliente todavia no tiene bot');
   const etiquetas = (perfil.etiquetas || []).filter((e) => e.nombre);
-  if (!etiquetas.length) return { etiquetas: 0, vistas: 0 };
+
+  // Los atributos los declara cada MODULO, no el perfil: agregar un modulo
+  // nuevo no debe obligar a tocar el panel. Se le preguntan al propio bot.
+  let atributos = [];
+  try {
+    const esquema = await alBot(slug, '/bot/admin/esquema', { timeoutMs: 15000 });
+    atributos = esquema.atributos || [];
+  } catch (err) {
+    log?.(`no se pudo leer el esquema del bot (${err.message}); solo se sincronizan etiquetas`);
+  }
+  if (!etiquetas.length && !atributos.length) return { etiquetas: 0, vistas: 0, atributos: 0 };
 
   // Las etiquetas viajan por variable de entorno y NO interpoladas en el codigo.
   // Motivo: {"nombre":"pedido"} es JSON valido pero Ruby lo lee como clave
@@ -284,14 +294,35 @@ export async function sincronizarEtiquetas(slug, log) {
         vistas += 1
       end
     end
-    puts "JSON:" + { etiquetas: creadas, vistas: vistas }.to_json
+    # Sin la DEFINICION, Chatwoot guarda el valor del atributo pero no lo
+    # muestra en la barra lateral ni deja filtrar por el: se ve como si el bot
+    # no hubiera escrito nada.
+    TIPOS = { 'text' => 0, 'number' => 1, 'currency' => 2, 'percent' => 3,
+              'link' => 4, 'date' => 5, 'list' => 6, 'checkbox' => 7 }
+    MODELOS = { 'conversacion' => 'conversation_attribute', 'contacto' => 'contact_attribute' }
+    atributos = 0
+    JSON.parse(ENV.fetch('ATRIBUTOS_JSON', '[]')).each do |a|
+      modelo = MODELOS[a['modelo']] || 'conversation_attribute'
+      d = account.custom_attribute_definitions.find_or_initialize_by(
+        attribute_key: a['clave'], attribute_model: modelo
+      )
+      next unless d.new_record?
+      d.attribute_display_name = a['titulo'].presence || a['clave']
+      d.attribute_display_type = TIPOS[a['tipo']] || 0
+      d.attribute_values = a['valores'] if a['valores'].present?
+      d.save!
+      atributos += 1
+    end
+    puts "JSON:" + { etiquetas: creadas, vistas: vistas, atributos: atributos }.to_json
   `.trim();
   const { salida } = await correr('docker', [
-    'exec', '-e', `ETIQUETAS_JSON=${JSON.stringify(etiquetas)}`,
+    'exec',
+    '-e', `ETIQUETAS_JSON=${JSON.stringify(etiquetas)}`,
+    '-e', `ATRIBUTOS_JSON=${JSON.stringify(atributos)}`,
     contenedorRails(slug), 'bundle', 'exec', 'rails', 'runner', ruby,
   ], { log });
   const linea = salida.split('\n').reverse().find((l) => l.startsWith('JSON:'));
-  return linea ? JSON.parse(linea.slice(5)) : { etiquetas: 0, vistas: 0 };
+  return linea ? JSON.parse(linea.slice(5)) : { etiquetas: 0, vistas: 0, atributos: 0 };
 }
 
 // --- nginx -------------------------------------------------------------------
@@ -465,9 +496,9 @@ export async function preparar(slug, log) {
   });
   await arrancar(slug, log);
 
-  log('Creando etiquetas y vistas en Chatsuite…');
+  log('Creando etiquetas, vistas y atributos en Chatsuite…');
   const r = await sincronizarEtiquetas(slug, log);
-  log(`Etiquetas nuevas: ${r.etiquetas} · vistas nuevas: ${r.vistas}`);
+  log(`Etiquetas nuevas: ${r.etiquetas} · vistas: ${r.vistas} · atributos: ${r.atributos ?? 0}`);
 
   log('');
   log('Bot listo y en BORRADOR. Configuralo y probalo en el simulador;');
