@@ -1,10 +1,25 @@
-# Chatsuite Provisioner
+# Chatsuite Platform
 
-Panel para dar de alta instancias de Chatwoot ("Chatsuite") con la marca de cada
-cliente, en `https://dtgp.ai`.
+Panel para dar de alta clientes completos —su Chatwoot con marca propia, su bot
+de IA y su canal de WhatsApp— desde un formulario, en `https://dtgp.ai`.
 
 Antes, cada cliente nuevo eran ~10 pasos manuales y una imagen Docker propia de
-4 GB que tardaba media hora en construirse. Ahora es un formulario.
+4 GB que tardaba media hora en construirse. Y el bot se armaba a mano, por
+cliente. Ahora los tres se dan de alta desde el panel.
+
+| Capa | Qué hace |
+|---|---|
+| **Chatsuite** | El Chatwoot del cliente con su marca, en `cliente.dtgp.ai` |
+| **Bot** | Asistente de IA configurable, con simulador para afinarlo antes de entregarlo |
+| **WhatsApp** | Evolution propio por cliente, con el QR en el panel |
+
+El diseño completo y las decisiones están en
+[`PLATAFORMA-BOTS.md`](PLATAFORMA-BOTS.md); el estado actual, en
+[`ESTADO.md`](ESTADO.md).
+
+> **El motor de los bots vive aparte**, en `/home/ubuntu/chatsuite-bot`: es un
+> solo código para todos los clientes y el cliente entra por datos (su
+> `perfil.json`). Este repo trae el panel que lo configura, no el motor.
 
 ---
 
@@ -34,7 +49,9 @@ Una sola imagen para todos los clientes. Sin build por alta.
 | `server/bin/generar-marca.py` | Logo del cliente -> los 10 assets de marca |
 | `server/panel/` | Panel en React + shadcn/ui (Base UI) + Tailwind v4 + motion |
 | `server/public/` | **Salida del build.** Se borra en cada `npm run panel:build` |
-| `instalacion/` | sudoers acotado y la clave del panel |
+| `server/src/bots.js` | Alta y configuración del bot del cliente |
+| `server/src/evolution.js` | Canal de WhatsApp: Evolution por cliente y QR |
+| `instalacion/` | sudoers acotado y la clave del panel (la clave NO se versiona) |
 | `/srv/chatsuite/<slug>/` | Un directorio por cliente |
 | `/srv/chatsuite/tenants.json` | Estado (modo 600: contiene secretos) |
 
@@ -51,6 +68,28 @@ Una sola imagen para todos los clientes. Sin build por alta.
 
 Cada paso es idempotente y se marca en el estado. **Reintentar** retoma desde el
 que falló, sin rehacer los anteriores.
+
+Si en el alta se pidió bot, se crea **después** de marcar el cliente activo: si
+falla, el Chatsuite queda bueno igual y se reintenta desde su tarjeta.
+
+## Después del alta
+
+Desde la tarjeta del cliente:
+
+- **Bot: configurar y probar** — crea el AgentBot, publica el webhook y levanta
+  el proceso. Se configura por pestañas y se prueba en el **simulador**, que
+  corre el bot de verdad sin mandar nada a WhatsApp. Arranca en borrador.
+- **WhatsApp: conectar el número** — levanta el Evolution del cliente, crea la
+  instancia enlazada a su Chatsuite y muestra el QR. Al conectar hay que pulsar
+  **Enlazar el bot al inbox**: apaga `enable_auto_assignment`, sin lo cual la
+  conversación nace asignada y el bot no la ve nunca.
+
+## Primera instalación
+
+```bash
+npm --prefix server/panel install   # el panel no versiona node_modules
+npm --prefix server run panel:build # genera server/public/
+```
 
 ---
 
