@@ -1,0 +1,17 @@
+{
+  "name": "chatsuite-provisioner",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Panel de aprovisionamiento de Chatsuite para clientes de DT Growth Partners",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "panel": "npm --prefix panel run build && pm2 restart chatsuite-panel",
+    "panel:build": "npm --prefix panel run build",
+    "panel:dev": "npm --prefix panel run dev"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

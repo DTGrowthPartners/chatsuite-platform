@@ -1,0 +1,20 @@
+/* Marca por defecto de Chatsuite (DT Growth Partners).
+ *
+ * Cada tenant monta su propio directorio sobre /app/public/brand-assets/ y
+ * reemplaza este archivo, junto con los logos y favicons. Es el UNICO punto
+ * por el que entra la identidad del cliente: no hay build por cliente.
+ *
+ * --brand-rgb alimenta la paleta `brand` de Tailwind (botones, enlaces, item
+ * activo del sidebar, foco de campos) y ademas el azul de las pantallas de
+ * sesion. --brand-accent-rgb es el segundo tono, que solo usan los degradados
+ * y los halos del login.
+ *
+ * Van en canales RGB separados por ESPACIO y sin coma: es el formato que exige
+ * la sintaxis `rgb(var(--brand-rgb) / <alpha-value>)` de theme/colors.js. Con
+ * comas, o con un hex, Tailwind no puede aplicar opacidad y los estados
+ * hover/disabled se ven solidos.
+ */
+:root {
+  --brand-rgb: 0 127 252;         /* #007FFC */
+  --brand-accent-rgb: 38 189 240; /* #26BDF0 */
+}

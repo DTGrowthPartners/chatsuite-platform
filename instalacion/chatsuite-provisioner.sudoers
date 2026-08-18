@@ -1,0 +1,26 @@
+# Permisos acotados del panel de aprovisionamiento de Chatsuite.
+#
+#   sudo install -m 0440 -o root -g root \
+#     /home/ubuntu/chatsuite-platform/instalacion/chatsuite-provisioner.sudoers \
+#     /etc/sudoers.d/chatsuite-provisioner
+#   sudo visudo -c
+#
+# OJO: hoy el usuario `ubuntu` ya tiene NOPASSWD para TODO. Mientras esa regla
+# siga puesta, este archivo no restringe nada — solo documenta lo que el panel
+# necesita de verdad. Para que sirva hay que quitar el NOPASSWD:ALL de ubuntu,
+# y eso hay que sopesarlo aparte porque otras cosas de la maquina dependen de el.
+#
+# El panel corre como `ubuntu` y necesita root SOLO para nginx y certbot: los
+# contenedores los maneja por el grupo docker, sin sudo.
+
+Cmnd_Alias CHATSUITE_NGINX = /usr/sbin/nginx -t, \
+                             /usr/bin/systemctl reload nginx, \
+                             /usr/bin/cp /srv/chatsuite/*/_nginx.conf /etc/nginx/sites-available/*, \
+                             /usr/bin/ln -sfn /etc/nginx/sites-available/* /etc/nginx/sites-enabled/*, \
+                             /usr/bin/rm -f /etc/nginx/sites-enabled/*, \
+                             /usr/bin/rm -f /etc/nginx/sites-available/*
+
+Cmnd_Alias CHATSUITE_CERT  = /usr/bin/certbot --nginx *, \
+                             /usr/bin/certbot delete --cert-name * --non-interactive
+
+ubuntu ALL=(root) NOPASSWD: CHATSUITE_NGINX, CHATSUITE_CERT

@@ -1,0 +1,21 @@
+# Dependencias
+node_modules/
+
+# Salida de build del panel. Se regenera con `npm run panel` desde server/,
+# y el propio proceso la borra y la rehace en cada compilación.
+server/public/
+
+# SECRETOS. La clave del panel se genera en la instalación y vive solo en el
+# servidor, con permisos 600.
+instalacion/clave-panel.txt
+.env
+.env.*
+*.pem
+*.key
+
+# Datos de los clientes: viven en /srv/chatsuite/, nunca en el repo.
+tenants.json
+
+# Ruido
+*.log
+.DS_Store
