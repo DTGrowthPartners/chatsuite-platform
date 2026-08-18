@@ -16,6 +16,7 @@ import {
 import { Selector } from '@/componentes/bot/campos';
 import { FormOperacion, FormPersona } from '@/componentes/bot/formularios';
 import { EditorCatalogo, EditorLista, EditorNegocio } from '@/componentes/bot/listas';
+import { FormAgenda } from '@/componentes/bot/Agenda';
 import { Metricas } from '@/componentes/bot/Metricas';
 import { Simulador } from '@/componentes/bot/Simulador';
 
@@ -32,7 +33,7 @@ const COLOR_CICLO: Record<string, string> = {
 };
 
 type Pestana = 'simulador' | 'metricas' | 'persona' | 'negocio' | 'catalogo'
-  | 'respuestas' | 'domicilios' | 'equipo' | 'operacion';
+  | 'agenda' | 'cierres' | 'respuestas' | 'domicilios' | 'equipo' | 'operacion';
 
 export function DialogoBot({
   tenant, alCerrar, alJob,
@@ -89,12 +90,15 @@ export function DialogoBot({
 
   const modulos = perfil?.modulos || [];
   const conTienda = modulos.includes('tienda');
+  const conCitas = modulos.includes('citas');
   const pestanas: { id: Pestana; texto: string; visible?: boolean }[] = [
     { id: 'simulador', texto: 'Simulador' },
     { id: 'metricas', texto: 'Métricas' },
     { id: 'persona', texto: 'Persona' },
     { id: 'negocio', texto: 'Negocio' },
     { id: 'catalogo', texto: 'Catálogo', visible: conTienda },
+    { id: 'agenda', texto: 'Agenda', visible: conCitas },
+    { id: 'cierres', texto: 'Días cerrados', visible: conCitas },
     { id: 'respuestas', texto: 'Respuestas' },
     { id: 'domicilios', texto: 'Domicilios', visible: conTienda },
     { id: 'equipo', texto: 'Equipo' },
@@ -182,6 +186,21 @@ export function DialogoBot({
               {pestana === 'persona' ? <FormPersona perfil={perfil} alCambiar={setPerfil} /> : null}
               {pestana === 'negocio' && slug ? <EditorNegocio slug={slug} /> : null}
               {pestana === 'catalogo' && slug ? <EditorCatalogo slug={slug} /> : null}
+              {pestana === 'agenda' ? <FormAgenda perfil={perfil} alCambiar={setPerfil} /> : null}
+              {pestana === 'cierres' && slug ? (
+                <EditorLista
+                  slug={slug}
+                  archivo="cierres.json"
+                  titulo="Días que no se atiende — festivos, vacaciones"
+                  vacio={{ fecha: '', motivo: '' }}
+                  columnas={[
+                    { llave: 'fecha', titulo: 'Fecha (AAAA-MM-DD) o deja vacío y usa desde/hasta' },
+                    { llave: 'motivo', titulo: 'Motivo' },
+                    { llave: 'desde', titulo: 'Desde (AAAA-MM-DD)' },
+                    { llave: 'hasta', titulo: 'Hasta (AAAA-MM-DD)' },
+                  ]}
+                />
+              ) : null}
               {pestana === 'respuestas' && slug ? (
                 <EditorLista
                   slug={slug}
@@ -223,8 +242,9 @@ export function DialogoBot({
               {pestana === 'operacion' ? <FormOperacion perfil={perfil} alCambiar={setPerfil} /> : null}
             </div>
 
-            {pestana !== 'simulador' && pestana !== 'metricas' && pestana !== 'negocio' && pestana !== 'catalogo'
-              && pestana !== 'respuestas' && pestana !== 'domicilios' && pestana !== 'equipo' ? (
+            {/* Guardar solo donde se edita el PERFIL; las pestañas de datos
+                guardan cada una por su cuenta. */}
+            {(pestana === 'persona' || pestana === 'operacion' || pestana === 'agenda') ? (
                 <div className="flex justify-end gap-2 border-t pt-3">
                   {pestana === 'operacion' ? (
                     <Button

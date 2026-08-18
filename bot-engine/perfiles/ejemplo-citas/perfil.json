@@ -1,0 +1,86 @@
+{
+  "version": 1,
+  "slug": "ejemplo-citas",
+  "estado": "borrador",
+  "negocio": {
+    "nombre": "Clínica Sonrisa",
+    "ciudad": "Cartagena",
+    "zona_horaria": "America/Bogota",
+    "moneda": "COP",
+    "color": "#0EA5E9",
+    "contacto": "Clínica Sonrisa · 300 000 0000"
+  },
+  "chatsuite": { "inbox_id": null, "contenedor_rails": "" },
+  "canal": {
+    "tipo": "evolution",
+    "evolution": { "url": "", "instancia": "ejemplo-citas" },
+    "cloud_api": { "plantilla_alerta": "", "plantilla_alerta_idioma": "es",
+                   "plantilla_reenganche": "", "plantilla_reenganche_idioma": "es" }
+  },
+  "audiencia": "clientes",
+  "modulos": ["citas"],
+  "modelo": { "nombre": "claude-sonnet-4-6", "max_tokens": 1000, "max_historial": 30 },
+  "persona": {
+    "nombre": "Valentina",
+    "rol": "asistente de la clínica",
+    "tuteo": true,
+    "emojis": "pocos",
+    "max_lineas": 3,
+    "formato_precio": "$80.000",
+    "modo_experto": false,
+    "quien_te_escribe": "Pacientes que quieren agendar, cambiar o confirmar una cita. Algunos son nuevos y otros ya vienen hace tiempo.",
+    "reglas": [
+      "UNA sola pregunta por mensaje.",
+      "Nunca ofrezcas un horario sin haberlo consultado en la agenda.",
+      "Confirma día y hora en palabras, nunca en formato de máquina."
+    ],
+    "flujo": "1. Saluda y pregunta qué servicio necesita.\n2. Consulta la disponibilidad y ofrece dos o tres horarios.\n3. Cuando elija, pide el nombre del paciente.\n4. Agenda y confirma.",
+    "nunca": [
+      "Dar diagnósticos ni recomendaciones médicas.",
+      "Prometer un horario que no esté libre en la agenda.",
+      "Inventar precios que no estén en la lista de servicios."
+    ],
+    "cuando_escalar": [
+      "El paciente pide hablar con alguien.",
+      "Pregunta algo clínico o sobre su tratamiento.",
+      "Tiene un reclamo o está molesto.",
+      "Quiere un horario que no existe y no acepta alternativas."
+    ]
+  },
+  "operacion": {
+    "horario": { "inicio": 7, "fin": 20, "mensaje_fuera": "ya cerramos por hoy, mañana temprano te respondo" },
+    "ritmo": { "respuesta_min_seg": 15, "respuesta_max_seg": 40, "max_salientes_hora": 80 },
+    "pausa_humano_seg": 3600,
+    "mensaje_handoff": "te comunico con alguien del equipo, un momento",
+    "reenganche": { "activo": true, "ventana_dias": 7 }
+  },
+  "citas": {
+    "agenda": "propia",
+    "direccion": "Calle 40 #12-05, Cartagena",
+    "duracion_min": 30,
+    "paso_min": 30,
+    "anticipacion_min": 120,
+    "servicios": [
+      { "nombre": "Limpieza dental", "minutos": 45, "precio": 80000 },
+      { "nombre": "Valoración", "minutos": 30, "precio": 0, "nota": "sin costo la primera vez" },
+      { "nombre": "Blanqueamiento", "minutos": 90, "precio": 450000 }
+    ],
+    "profesionales": ["Dra. Ramírez", "Dr. Castillo"],
+    "horario": {
+      "lunes":     [{ "desde": "08:00", "hasta": "12:00" }, { "desde": "14:00", "hasta": "18:00" }],
+      "martes":    [{ "desde": "08:00", "hasta": "12:00" }, { "desde": "14:00", "hasta": "18:00" }],
+      "miercoles": [{ "desde": "08:00", "hasta": "12:00" }, { "desde": "14:00", "hasta": "18:00" }],
+      "jueves":    [{ "desde": "08:00", "hasta": "12:00" }, { "desde": "14:00", "hasta": "18:00" }],
+      "viernes":   [{ "desde": "08:00", "hasta": "12:00" }, { "desde": "14:00", "hasta": "17:00" }],
+      "sabado":    [{ "desde": "09:00", "hasta": "13:00" }],
+      "domingo":   null
+    }
+  },
+  "etiquetas": [
+    { "nombre": "cita", "titulo": "📅 Citas" },
+    { "nombre": "cancelacion", "titulo": "❌ Cancelaciones" },
+    { "nombre": "reclamo", "titulo": "⚠️ Reclamos" },
+    { "nombre": "seguimiento", "titulo": "🔁 Seguimiento" }
+  ],
+  "alertas": { "usar_equipo": true, "numeros_extra": [], "numeros_pregunta": [], "tipos_whatsapp": ["escalada", "cita"] }
+}

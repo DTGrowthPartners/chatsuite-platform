@@ -41,6 +41,9 @@ export const DATOS = {
   'domicilios.json': { tipo: 'json', vacio: [] },
   'equipo.json': { tipo: 'json', vacio: [] },
   'pedidos.json': { tipo: 'json', vacio: [], soloLectura: true },
+  // Modulo citas
+  'cierres.json': { tipo: 'json', vacio: [] },
+  'citas.json': { tipo: 'json', vacio: [], soloLectura: true },
 };
 
 export function puertosBotUsados() {

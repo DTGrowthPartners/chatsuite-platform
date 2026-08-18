@@ -162,14 +162,17 @@ export function FormOperacion({ perfil, alCambiar }: Props) {
 
       <Campo etiqueta="Módulos" ayuda="Cada uno agrega sus herramientas y su parte del prompt">
         <div className="grid gap-2">
-          {[{ id: 'tienda', texto: 'Tienda — catálogo, fotos, pedidos y domicilios' }].map((m) => (
+          {[
+            { id: 'tienda', texto: 'Tienda — catálogo, fotos, pedidos y domicilios' },
+            { id: 'citas', texto: 'Citas — agenda, servicios, profesionales y cancelaciones' },
+          ].map((m) => (
             <label key={m.id} className="flex items-center gap-2 rounded-md border p-2.5 text-sm">
               <input type="checkbox" checked={modulos.includes(m.id)} onChange={(e) => alternarModulo(m.id, e.target.checked)} />
               {m.texto}
             </label>
           ))}
           <p className="text-xs text-muted-foreground">
-            Citas, socios y tareas todavía no existen en el motor.
+            Socios y tareas todavía no existen en el motor.
           </p>
         </div>
       </Campo>

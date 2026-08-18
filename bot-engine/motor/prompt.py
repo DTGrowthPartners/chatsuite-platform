@@ -12,9 +12,15 @@ datos, no estilo.
 """
 import json
 import logging
+from datetime import datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from .config import DATA, PROMPTS
+
+_DIAS = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"]
+_MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio",
+          "agosto", "septiembre", "octubre", "noviembre", "diciembre"]
 
 log = logging.getLogger("chatsuite-bot")
 
@@ -94,6 +100,21 @@ def _escalamiento(p) -> str:
     ])
 
 
+def fecha_hoy(p) -> str:
+    """La fecha de hoy en la zona del cliente, en texto natural.
+
+    Sin esto el modelo NO puede resolver «mañana a las 3» y se inventa la fecha:
+    es obligatorio para agendar, y útil para todos («llega hoy mismo»).
+
+    Va la FECHA, no la hora exacta, a propósito: el system prompt se manda con
+    `cache_control`, y un timestamp al minuto invalidaría el caché en cada
+    turno. Con la fecha, el caché sobrevive el día entero. La hora concreta la
+    entrega la herramienta de disponibilidad, que devuelve horarios reales.
+    """
+    ahora = datetime.now(ZoneInfo(p.tz))
+    return f"{_DIAS[ahora.weekday()]} {ahora.day} de {_MESES[ahora.month - 1]} de {ahora.year}"
+
+
 def construir(p, modulos) -> str:
     """El system prompt completo para este perfil y estos módulos."""
     partes: list[str] = []
@@ -140,4 +161,8 @@ def construir(p, modulos) -> str:
             if b:
                 partes.append(b)
 
+    partes.append(
+        f"# Fecha\n\nHoy es {fecha_hoy(p)}. Úsala para entender «hoy», «mañana», "
+        "«el lunes» o «la otra semana». No supongas otra fecha."
+    )
     return "\n\n".join(partes)

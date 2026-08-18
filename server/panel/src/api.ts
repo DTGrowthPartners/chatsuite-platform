@@ -94,7 +94,8 @@ export type Qr = {
 
 export type ArchivoDato =
   | 'negocio.md' | 'catalogo.json' | 'respuestas.json'
-  | 'domicilios.json' | 'equipo.json' | 'pedidos.json';
+  | 'domicilios.json' | 'equipo.json' | 'pedidos.json'
+  | 'cierres.json' | 'citas.json';
 
 export type Sistema = {
   memoria: { totalMB: number; usadaMB: number; disponibleMB: number };

@@ -5,7 +5,7 @@ bot, venda computadores o agende citas.
 """
 import logging
 
-from . import comun, tienda
+from . import citas, comun, tienda
 from .base import Contexto, Modulo, Resultado  # noqa: F401  (reexport)
 
 log = logging.getLogger("chatsuite-bot")
@@ -13,6 +13,7 @@ log = logging.getLogger("chatsuite-bot")
 DISPONIBLES: dict[str, Modulo] = {
     "comun": comun.Modulo(),
     "tienda": tienda.Modulo(),
+    "citas": citas.Modulo(),
 }
 
 SIEMPRE = ("comun",)

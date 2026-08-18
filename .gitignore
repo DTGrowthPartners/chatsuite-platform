@@ -13,6 +13,8 @@ bot-engine/perfiles/*/data/.pdf-thumbs/
 bot-engine/perfiles/*/data/estado-bot.json
 bot-engine/perfiles/*/data/transcripciones.json
 bot-engine/perfiles/*/data/reenganches.json
+bot-engine/perfiles/*/data/citas.json
+bot-engine/perfiles/*/data/eventos.jsonl
 
 # Salida de build del panel. Se regenera con `npm run panel` desde server/,
 # y el propio proceso la borra y la rehace en cada compilación.
