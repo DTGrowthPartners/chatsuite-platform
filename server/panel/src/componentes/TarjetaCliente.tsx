@@ -1,6 +1,6 @@
 import { motion } from 'motion/react';
 import {
-  ExternalLink, MoreVertical, Play, Square, Archive, RotateCw, Trash2, Info, Bot, QrCode,
+  ExternalLink, MoreVertical, Play, Square, Archive, RotateCw, Trash2, Info, Bot, QrCode, PauseCircle, PlayCircle,
 } from 'lucide-react';
 
 import type { Tenant } from '@/api';
@@ -20,6 +20,7 @@ const COLOR_ESTADO: Record<Tenant['estado'], string> = {
   aprovisionando: 'border-sky-400/30 bg-sky-400/12 text-sky-300',
   error: 'border-destructive/40 bg-destructive/12 text-destructive',
   detenido: 'border-border bg-muted text-muted-foreground',
+  suspendido: 'border-amber-500/40 bg-amber-500/12 text-amber-400',
   pendiente: 'border-border bg-muted text-muted-foreground',
 };
 
@@ -100,6 +101,18 @@ export function TarjetaCliente({
               <DropdownMenuItem onSelect={() => alAccion(t.slug, 'respaldar')}>
                 <Archive /> Respaldar ahora
               </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              {/* Corta el servicio sin borrar nada: apaga el bot, el WhatsApp y
+                  el Chatsuite, y publica una página que lo explica. */}
+              {t.estado === 'suspendido' ? (
+                <DropdownMenuItem onSelect={() => alAccion(t.slug, 'reanudar')}>
+                  <PlayCircle /> Reanudar el servicio
+                </DropdownMenuItem>
+              ) : (
+                <DropdownMenuItem onSelect={() => alAccion(t.slug, 'suspender')}>
+                  <PauseCircle /> Suspender el servicio
+                </DropdownMenuItem>
+              )}
               <DropdownMenuSeparator />
               <DropdownMenuItem variant="destructive" onSelect={() => alBorrar(t)}>
                 <Trash2 /> Borrar

@@ -5,7 +5,7 @@ a qué se dedique el negocio.
 """
 import logging
 
-from motor import alertas, perfil as perfil_mod
+from motor import alertas, eventos, perfil as perfil_mod
 
 from .base import Contexto, Modulo as Base, Resultado
 
@@ -73,6 +73,10 @@ class Modulo(Base):
             if ctx.simulacion:
                 ctx.registrar(f"escalaría a un humano · motivo: {motivo}")
             else:
+                # El motivo lo escribe el propio modelo: agrupados dicen por qué
+                # se le escapan las conversaciones.
+                eventos.registrar("escalada", ctx.conv_id, motivo=motivo[:300],
+                                  reclamo=bool(etiquetas))
                 await alertas.enviar_alerta("escalada", ctx.conv_id, ctx.telefono, f"Motivo: {motivo}")
             return Resultado(
                 texto="Conversación pasada a la cola humana.",
@@ -87,6 +91,10 @@ class Modulo(Base):
                 ctx.registrar(f"avisaría al equipo: {pregunta}")
                 salio = True
             else:
+                # Acá SÍ se guarda el texto: cada una de estas es un dato que le
+                # falta al bot, y agrupadas son la lista de qué arreglar en el
+                # catálogo o en la tabla de domicilios.
+                eventos.registrar("sin_dato", ctx.conv_id, pregunta=pregunta[:300])
                 salio = await alertas.enviar_alerta("pregunta", ctx.conv_id, ctx.telefono, pregunta)
             # El texto importa: el modelo se lo repite al cliente tal cual. Si
             # promete un aviso que no salió, el cliente queda esperando.

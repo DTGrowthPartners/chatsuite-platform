@@ -211,6 +211,10 @@ const rutas = {
     const acciones = {
       arrancar: (log) => ciclo.arrancar(slug, log),
       detener: (log) => ciclo.detener(slug, log),
+      // Corta el servicio del cliente sin borrar nada y con una página que lo
+      // explica, en vez del 502 que deja `detener`.
+      suspender: (log) => ciclo.suspender(slug, log, confirmar),
+      reanudar: (log) => ciclo.reanudar(slug, log),
       respaldar: (log) => ciclo.respaldar(slug, log),
       reintentar: (log) => aprovisionar(slug, log),
       borrar: (log) => {
@@ -313,6 +317,16 @@ const rutas = {
     if (!obtener(slug)) return json(res, 404, { error: 'no existe' });
     try {
       json(res, 200, await bots.simular(slug, mensajes));
+    } catch (err) {
+      json(res, 502, { error: err.message });
+    }
+  },
+
+  'GET /api/bot/metricas': async (req, res, url) => {
+    const slug = url.searchParams.get('slug');
+    if (!obtener(slug)) return json(res, 404, { error: 'no existe' });
+    try {
+      json(res, 200, await bots.metricas(slug, url.searchParams.get('dias') || 30));
     } catch (err) {
       json(res, 502, { error: err.message });
     }

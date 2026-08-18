@@ -278,3 +278,79 @@ que el alta normal siga siendo cuatro campos y un logo:
 El bot se crea **después** de marcar el Chatsuite activo, no como un paso más:
 si falla, el Chatsuite del cliente queda bueno igual y se reintenta desde la
 tarjeta sin repetir los 8 pasos.
+
+
+---
+
+## Qué medimos (2026-08-18)
+
+Todo es **interno**: el cliente solo recibe su plataforma con su marca y su
+WhatsApp, para mirar cómo contesta el bot e intervenir de vez en cuando. Lo
+financiero vive en DTOS, no acá.
+
+### Dos archivos por cliente
+
+- `data/eventos.jsonl` — una línea por hecho, de solo agregar, ~90 días. Es el
+  detalle; permite responder preguntas que hoy no se nos ocurrieron.
+- `data/stats.json` — el acumulado por día. Es lo que lee el panel.
+
+**No se guarda el contenido de los mensajes**: ya vive en Chatsuite, y
+duplicarlo sería un problema de privacidad sin ganancia. La excepción es
+`sin_dato`, donde la pregunta *es* el dato.
+
+### Lo que se registra
+
+| Evento | Para qué |
+|---|---|
+| `atendido` | tokens, latencia y turnos de cada mensaje respondido |
+| `escalada` | con el motivo que escribió el propio modelo |
+| `pedido` | total y zona |
+| `tool` | qué herramienta y cuántas veces |
+| `sin_dato` | **la pregunta que no supo responder** |
+| `foto_faltante` | producto cuya foto no existe en disco |
+| `no_respondio` | por horario, pausa o freno del canal |
+| `fallo` | errores, con el tipo de excepción |
+| `humano_entro` | el bot se apartó porque contestó una persona |
+
+### Las cifras que salen de ahí
+
+**Contención** —qué parte cerró el bot sin que entrara un humano— es la que
+importa: es la que se traduce en asesores ahorrados. Al lado: pedidos por cada
+100 mensajes, latencia del modelo y **tokens por mensaje**.
+
+⚠️ **El costo real incluye el caché.** El system prompt va con `cache_control`,
+así que los tokens cacheados NO aparecen en `input_tokens`: se reportan aparte.
+Medido en Tu Bodega, un turno reporta 333 tokens de entrada y en realidad mueve
+**~15.100 por llamada al modelo** — y un turno con tool son dos llamadas. Contar
+solo `input_tokens` daría una métrica de costo que miente por un factor de 40.
+
+De esos ~15.100, el prompt de Tu Bodega pesa ~14.600: **el 19% es la tabla de
+230 barrios** y otro 18% el catálogo. Si algún día el costo importa, ahí está
+lo que hay que optimizar.
+
+### Lo que no es una métrica pero es lo más útil
+
+La lista de **preguntas que el bot no supo responder**, agrupada por repetición.
+Si el mismo barrio aparece 40 veces, no es un incidente: es una fila que falta
+en la tabla de domicilios. Convierte «no me gusta cómo contesta» en una lista
+concreta de qué arreglar, y es el circuito que hace que el bot mejore solo.
+
+## Suspender el servicio
+
+En la tarjeta del cliente → **Suspender el servicio**. Es distinto de *Detener*:
+detener apaga los contenedores y el dominio queda devolviendo **502 Bad
+Gateway**, que se lee como avería y no como decisión.
+
+Suspender apaga el bot, el WhatsApp y el Chatsuite, y publica una página que lo
+explica, con el color del cliente.
+
+- **No borra nada.** Base, volúmenes y respaldos quedan intactos.
+- **No cierra la sesión de WhatsApp**, solo apaga el contenedor: la sesión vive
+  en el volumen, así que al reanudar reconecta **sin pedir QR otra vez**.
+- **El bot vuelve al estado que tenía**, no a producción por defecto.
+- La página va en `/var/www/chatsuite-suspendido/`, **no** en `/srv/chatsuite/`:
+  ese directorio es 750 de `ubuntu` y nginx corre como `www-data`.
+- El bloque de nginx es una **location regex**, porque el sitio ya tiene un
+  `location /` y nginx rechaza duplicados; una regex gana sobre el prefijo sin
+  chocar. Se exceptúa `/.well-known/` para que certbot pueda renovar el
+  certificado mientras el servicio está suspendido.

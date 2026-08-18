@@ -24,8 +24,8 @@ from fastapi.responses import FileResponse
 
 import modulos
 
-from . import (alertas, audiencia, brain, canal, chatwoot, estado, historial,
-               humanizador, perfil as perfil_mod, plantillas)
+from . import (alertas, audiencia, brain, canal, chatwoot, estado, eventos,
+               historial, humanizador, perfil as perfil_mod, plantillas)
 from .config import DATA, secretos
 
 log = logging.getLogger("chatsuite-bot")
@@ -175,6 +175,7 @@ async def _procesar(conv_id: int, ev: dict):
             # agravar una posible sanción. Queda en la cola; el barrido la
             # retoma cuando los acuses vuelvan.
             log.warning("conv %s: salientes congelados; queda pendiente", conv_id)
+            eventos.registrar("no_respondio", conv_id, motivo="congelado")
             return
 
         ok, motivo = audiencia.atiende(telefono)
@@ -188,6 +189,7 @@ async def _procesar(conv_id: int, ev: dict):
 
         if not humanizador.dentro_horario():
             hoy = str(humanizador.ahora_local().date())
+            eventos.registrar("no_respondio", conv_id, motivo="fuera_de_horario")
             if _avisados_horario.get(conv_id) != hoy:
                 _avisados_horario[conv_id] = hoy
                 aviso = p.get("operacion.horario.mensaje_fuera", "")
@@ -241,6 +243,7 @@ async def _responder(conv_id: int, texto: str, telefono: str, inicio: float):
         if humanizador.humano_activo(crudo):
             estado.pausar(telefono, int(p.get("operacion.pausa_humano_seg", 3600)))
             await chatwoot.a_humano(conv_id)
+            eventos.registrar("humano_entro", conv_id)
             log.info("conv %s: humano activo; el bot se aparta", conv_id)
             return
 
@@ -255,6 +258,12 @@ async def _responder(conv_id: int, texto: str, telefono: str, inicio: float):
         r = await brain.responder(mensajes, conv_id, telefono)
         if r.texto:
             await humanizador.enviar(conv_id, r.texto, time.monotonic() - inicio, telefono)
+            eventos.registrar(
+                "atendido", conv_id,
+                tokens_in=r.tokens_in, tokens_out=r.tokens_out, ms=r.ms_modelo,
+                cache_lee=r.tokens_cache_lectura, cache_escribe=r.tokens_cache_escritura,
+                turnos=len(mensajes), partes=len(humanizador.partir(r.texto)),
+            )
         if r.escalar:
             await chatwoot.a_humano(conv_id)
             log.info("conv %s escalada por el modelo: %s", conv_id, r.motivo)
@@ -264,6 +273,7 @@ async def _responder(conv_id: int, texto: str, telefono: str, inicio: float):
 
 async def _degradar(conv_id: int, telefono: str, e: Exception):
     log.exception("conv %s: error procesando; escalando a humano", conv_id)
+    eventos.registrar("fallo", conv_id, error=f"{type(e).__name__}: {e}"[:200])
     try:
         await alertas.enviar_alerta(
             "fallo_ia", conv_id, telefono,
@@ -305,6 +315,14 @@ async def simular(request: Request):
         "efectos": r.efectos,
         "texto_descartado": r.texto_descartado,
         "segundos": round(time.monotonic() - inicio, 2),
+        # Sirve al afinar: se ve al instante si un prompt más largo o una tool
+        # de más disparan el costo del turno.
+        "tokens": {
+            "entrada": r.tokens_in, "salida": r.tokens_out,
+            "cache_lectura": r.tokens_cache_lectura,
+            "cache_escritura": r.tokens_cache_escritura,
+            "ms_modelo": r.ms_modelo,
+        },
         "perfil": {"slug": p.slug, "estado": p.estado, "modulos": p.modulos},
     }
 
@@ -358,6 +376,19 @@ async def admin_set_estado(request: Request):
     perfil_mod.escribir(actual)
     log.warning("ciclo de vida del bot: %s", nuevo)
     return {"ok": True, "estado": perfil_mod.actual().estado}
+
+
+@app.get("/bot/admin/metricas")
+async def admin_metricas(request: Request):
+    """Lo que hizo el bot. Es interno: al cliente no se le muestra nada de esto,
+    él solo ve su Chatsuite."""
+    dias = int(request.query_params.get("dias") or 30)
+    return {
+        **eventos.resumen(max(1, min(dias, 400))),
+        # Las preguntas que no supo responder van aparte porque no son una
+        # métrica: son la lista de trabajo para mejorarlo.
+        "sin_datos": eventos.sin_datos(),
+    }
 
 
 @app.get("/bot/admin/perfil")
@@ -515,6 +546,7 @@ async def admin_reenganchar(request: Request):
         return {"ok": False, "error": "no se pudo generar el mensaje"}
     await humanizador.enviar(conv_id, texto, 0, telefono)
     _marcar_reenganche(telefono)
+    eventos.registrar("reenganche", conv_id)
     return {"ok": True, "mensaje": texto}
 
 

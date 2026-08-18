@@ -5,6 +5,7 @@ así que cambiar el catálogo, una respuesta rápida o el tono aplica al instant
 sin reiniciar el servicio.
 """
 import logging
+import time
 from dataclasses import dataclass, field
 
 from anthropic import AsyncAnthropic
@@ -12,7 +13,7 @@ from anthropic import AsyncAnthropic
 import modulos
 from modulos.base import Contexto
 
-from . import chatwoot, perfil as perfil_mod, prompt
+from . import chatwoot, eventos, perfil as perfil_mod, prompt
 from .config import secretos
 
 log = logging.getLogger("chatsuite-bot")
@@ -38,6 +39,18 @@ class Respuesta:
     # es la explicación de por qué a veces la respuesta final «olvida» algo que
     # el modelo sí había contestado.
     texto_descartado: list = field(default_factory=list)
+    # Lo que costó el turno. Lo consume el registro de eventos: con Darío sobre
+    # el plan Max el costo marginal es cero hoy, pero tokens por conversación
+    # es el número que dice cuándo eso deja de ser viable.
+    tokens_in: int = 0
+    tokens_out: int = 0
+    # El system prompt va con cache_control, así que los tokens cacheados NO
+    # aparecen en input_tokens: se reportan aparte. Contar solo input_tokens
+    # daría 333 donde el turno realmente movió 8.000 — una métrica de costo que
+    # miente es peor que ninguna.
+    tokens_cache_lectura: int = 0
+    tokens_cache_escritura: int = 0
+    ms_modelo: int = 0
 
 
 # ── Clasificación barata para las vistas del panel ──────────────────────────
@@ -104,8 +117,11 @@ async def responder(
 
     usadas: list[str] = []
     descartados: list[str] = []
+    tokens_in = tokens_out = ms_modelo = 0
+    cache_lee = cache_escribe = 0
 
     for _ in range(MAX_VUELTAS):
+        arranque = time.monotonic()
         resp = await claude.messages.create(
             model=p.get("modelo.nombre", "claude-sonnet-4-6"),
             max_tokens=int(p.get("modelo.max_tokens", 1000)),
@@ -113,6 +129,13 @@ async def responder(
             tools=tools,
             messages=mensajes,
         )
+        ms_modelo += int((time.monotonic() - arranque) * 1000)
+        uso = getattr(resp, "usage", None)
+        tokens_in += getattr(uso, "input_tokens", 0) or 0
+        tokens_out += getattr(uso, "output_tokens", 0) or 0
+        cache_lee += getattr(uso, "cache_read_input_tokens", 0) or 0
+        cache_escribe += getattr(uso, "cache_creation_input_tokens", 0) or 0
+
         textos = [b.text for b in resp.content if b.type == "text"]
         pedidas = [b for b in resp.content if b.type == "tool_use"]
 
@@ -120,7 +143,9 @@ async def responder(
             partes = (descartados + textos) if p.get("modelo.texto_junto_a_tools", True) else textos
             return Respuesta(texto="\n\n".join(t for t in partes if t.strip()).strip(),
                              efectos=ctx.efectos, tools_usadas=usadas,
-                             texto_descartado=descartados)
+                             texto_descartado=descartados, tokens_in=tokens_in,
+                             tokens_out=tokens_out, ms_modelo=ms_modelo,
+                             tokens_cache_lectura=cache_lee, tokens_cache_escritura=cache_escribe)
 
         # El modelo puede pedir VARIAS tools en un mismo turno (p. ej. al
         # cerrar: registrar_pedido + escalar_a_humano). La API exige un
@@ -139,6 +164,8 @@ async def responder(
         resultados, escalar, motivo, etiquetas = [], False, "", []
         for tu in pedidas:
             usadas.append(tu.name)
+            if not simulacion:
+                eventos.registrar("tool", conv_id, nombre=tu.name)
             salida = None
             for m in activos:
                 salida = await m.ejecutar(tu.name, tu.input or {}, ctx)
@@ -167,7 +194,9 @@ async def responder(
                      or "ya te comunico con mi compañero, un momento")
             return Respuesta(texto=texto, escalar=True, motivo=motivo,
                              efectos=ctx.efectos, tools_usadas=usadas,
-                             texto_descartado=descartados)
+                             texto_descartado=descartados, tokens_in=tokens_in,
+                             tokens_out=tokens_out, ms_modelo=ms_modelo,
+                             tokens_cache_lectura=cache_lee, tokens_cache_escritura=cache_escribe)
 
         mensajes = mensajes + [
             {"role": "assistant", "content": [b.model_dump() for b in resp.content]},
@@ -175,7 +204,9 @@ async def responder(
         ]
 
     return Respuesta(texto=MENSAJE_DEGRADACION, escalar=True, motivo="loop de tools sin salida",
-                     efectos=ctx.efectos, tools_usadas=usadas, texto_descartado=descartados)
+                     efectos=ctx.efectos, tools_usadas=usadas, texto_descartado=descartados,
+                     tokens_in=tokens_in, tokens_out=tokens_out, ms_modelo=ms_modelo,
+                     tokens_cache_lectura=cache_lee, tokens_cache_escritura=cache_escribe)
 
 
 async def reenganche(mensajes: list[dict]) -> str:

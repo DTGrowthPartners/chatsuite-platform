@@ -212,7 +212,19 @@ const PASOS = [
     titulo: 'Levantar los contenedores',
     async ejecutar({ tenant, log }) {
       const dir = rutaTenant(tenant.slug);
-      await correr('docker', ['compose', 'up', '-d'], { cwd: dir, log });
+
+      // Si este paso ya habia fallado, se RECREAN los contenedores en vez de
+      // solo levantarlos.
+      //
+      // Motivo real: cuando `up -d` falla a mitad (p. ej. el puerto ocupado por
+      // otro proceso), el contenedor queda creado pero SIN RED. Un `up -d`
+      // posterior lo ve existente y solo hace start, asi que arranca sin red y
+      // se queda esperando a un `postgres` que nunca resuelve. El sintoma es
+      // "todavia arrancando..." para siempre, sin ningun error.
+      const reintento = tenant.pasos?.arrancar === 'error';
+      if (reintento) log('el intento anterior fallo: se recrean los contenedores');
+      await correr('docker', ['compose', 'up', '-d', ...(reintento ? ['--force-recreate'] : [])],
+        { cwd: dir, log });
 
       // docker compose materializa la ancla YAML `base` como un contenedor que
       // queda Exited(0) y ensucia el listado. No estorba, pero se borra para que

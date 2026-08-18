@@ -25,7 +25,7 @@ import secrets
 import time
 from pathlib import Path
 
-from motor import alertas, chatwoot, estado, perfil as perfil_mod
+from motor import alertas, chatwoot, estado, eventos, perfil as perfil_mod
 from motor.config import DATA
 
 from .base import Contexto, Modulo as Base, Resultado
@@ -252,6 +252,8 @@ class Modulo(Base):
             else:
                 guardado = _registrar_pedido(**pedido)
                 codigo = guardado["id"]
+                eventos.registrar("pedido", ctx.conv_id, id=codigo,
+                                  total=pedido["total"], zona=pedido["zona"])
                 await alertas.enviar_alerta(
                     "pedido", ctx.conv_id, ctx.telefono, f"Pedido #{codigo}: {resumen}"
                 )
@@ -289,6 +291,10 @@ class Modulo(Base):
             foto = FOTOS / str(prod.get("imagen") or "")
             falta = not prod.get("imagen") or not foto.exists()
             if falta and not ctx.simulacion:
+                # Se registra: una foto que el bot quiso mandar y no existe es
+                # un producto mal cargado, y en producción no lo ve nadie.
+                eventos.registrar("foto_faltante", ctx.conv_id, producto=pid,
+                                  archivo=str(prod.get("imagen") or ""))
                 continue
             caption = prod.get("nombre", "")
             if _tiene_precio(prod):

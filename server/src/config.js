@@ -13,6 +13,9 @@ export const GENERADOR_MARCA = path.join(RAIZ_APP, 'bin', 'generar-marca.py');
 export const DIR_TENANTS = '/srv/chatsuite';
 export const ARCHIVO_ESTADO = path.join(DIR_TENANTS, 'tenants.json');
 export const DIR_LOGS = path.join(DIR_TENANTS, '_logs');
+// Las paginas de "servicio suspendido". Fuera de DIR_TENANTS a proposito: ese
+// directorio es 750 y nginx (www-data) no puede leerlo.
+export const DIR_SUSPENDIDOS = '/var/www/chatsuite-suspendido';
 export const DIR_BACKUPS = path.join(DIR_TENANTS, '_backups');
 
 export const PUERTO_PANEL = Number(process.env.PUERTO_PANEL || 3200);

@@ -16,6 +16,7 @@ import {
 import { Selector } from '@/componentes/bot/campos';
 import { FormOperacion, FormPersona } from '@/componentes/bot/formularios';
 import { EditorCatalogo, EditorLista, EditorNegocio } from '@/componentes/bot/listas';
+import { Metricas } from '@/componentes/bot/Metricas';
 import { Simulador } from '@/componentes/bot/Simulador';
 
 const CICLO = [
@@ -30,8 +31,8 @@ const COLOR_CICLO: Record<string, string> = {
   produccion: 'border-emerald-500/30 bg-emerald-500/12 text-emerald-400',
 };
 
-type Pestana = 'simulador' | 'persona' | 'negocio' | 'catalogo' | 'respuestas'
-  | 'domicilios' | 'equipo' | 'operacion';
+type Pestana = 'simulador' | 'metricas' | 'persona' | 'negocio' | 'catalogo'
+  | 'respuestas' | 'domicilios' | 'equipo' | 'operacion';
 
 export function DialogoBot({
   tenant, alCerrar, alJob,
@@ -90,6 +91,7 @@ export function DialogoBot({
   const conTienda = modulos.includes('tienda');
   const pestanas: { id: Pestana; texto: string; visible?: boolean }[] = [
     { id: 'simulador', texto: 'Simulador' },
+    { id: 'metricas', texto: 'Métricas' },
     { id: 'persona', texto: 'Persona' },
     { id: 'negocio', texto: 'Negocio' },
     { id: 'catalogo', texto: 'Catálogo', visible: conTienda },
@@ -176,6 +178,7 @@ export function DialogoBot({
 
             <div className="min-h-0 flex-1 overflow-y-auto pr-1">
               {pestana === 'simulador' && slug ? <Simulador slug={slug} /> : null}
+              {pestana === 'metricas' && slug ? <Metricas slug={slug} /> : null}
               {pestana === 'persona' ? <FormPersona perfil={perfil} alCambiar={setPerfil} /> : null}
               {pestana === 'negocio' && slug ? <EditorNegocio slug={slug} /> : null}
               {pestana === 'catalogo' && slug ? <EditorCatalogo slug={slug} /> : null}
@@ -220,7 +223,7 @@ export function DialogoBot({
               {pestana === 'operacion' ? <FormOperacion perfil={perfil} alCambiar={setPerfil} /> : null}
             </div>
 
-            {pestana !== 'simulador' && pestana !== 'negocio' && pestana !== 'catalogo'
+            {pestana !== 'simulador' && pestana !== 'metricas' && pestana !== 'negocio' && pestana !== 'catalogo'
               && pestana !== 'respuestas' && pestana !== 'domicilios' && pestana !== 'equipo' ? (
                 <div className="flex justify-end gap-2 border-t pt-3">
                   {pestana === 'operacion' ? (

@@ -9,7 +9,8 @@ export type Tenant = {
   dominio: string;
   puerto: number;
   color: string;
-  estado: 'pendiente' | 'aprovisionando' | 'activo' | 'error' | 'detenido';
+  estado: 'pendiente' | 'aprovisionando' | 'activo' | 'error' | 'detenido' | 'suspendido';
+  suspension?: { desde: string; motivo: string; estadoBot: string | null };
   error: string | null;
   creadoEn: string;
   activadoEn?: string;
@@ -58,6 +59,20 @@ export type Simulacion = {
   efectos: string[];
   texto_descartado: string[];
   segundos: number;
+};
+
+export type Metricas = {
+  dias: number;
+  total: Record<string, number | Record<string, number>>;
+  por_dia: Record<string, Record<string, number>>;
+  derivadas: {
+    contencion: number | null;
+    pedidos_por_100: number | null;
+    ms_promedio: number | null;
+    tokens_por_atendido: number | null;
+  };
+  // No es una métrica: es la lista de qué arreglarle al bot.
+  sin_datos: { pregunta: string; veces: number; ultima: number }[];
 };
 
 export type EstadoWhatsapp = {
@@ -149,6 +164,8 @@ export const api = {
     ciclo: (slug: string, estado: string) => enviar<{ ok: boolean; estado: string }>('/api/bot/ciclo', { slug, estado }),
     simular: (slug: string, mensajes: { role: string; content: string }[]) =>
       enviar<Simulacion>('/api/bot/simular', { slug, mensajes }),
+    metricas: (slug: string, dias = 30) =>
+      pedir<Metricas>(`/api/bot/metricas?slug=${encodeURIComponent(slug)}&dias=${dias}`),
     prompt: (slug: string) =>
       pedir<{ prompt: string; tools: string[]; etiquetas: string[] }>(`/api/bot/prompt?slug=${encodeURIComponent(slug)}`),
     accion: (slug: string, accion: string) => enviar<{ job: string }>('/api/bot/accion', { slug, accion }),

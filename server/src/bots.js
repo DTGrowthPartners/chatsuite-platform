@@ -384,6 +384,9 @@ async function alBot(slug, ruta, opciones = {}) {
 
 export const estadoBot = (slug) => alBot(slug, '/bot/admin/estado', { timeoutMs: 8000 });
 export const verPrompt = (slug) => alBot(slug, '/bot/simular/prompt', { timeoutMs: 15000 });
+// Métricas internas: el cliente no ve nada de esto, él solo usa su Chatsuite.
+export const metricas = (slug, dias = 30) =>
+  alBot(slug, `/bot/admin/metricas?dias=${Number(dias) || 30}`, { timeoutMs: 20000 });
 export const simular = (slug, mensajes) => alBot(slug, '/bot/simular', {
   method: 'POST', body: JSON.stringify({ mensajes }),
 });
