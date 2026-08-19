@@ -59,7 +59,7 @@ parte del prompt. Un cliente de citas no ve una palabra sobre domicilios.
 | `comun` | escalar a humano, avisar al equipo | siempre activo |
 | `tienda` | catálogo con fotos, pedidos, domicilios, catálogo en PDF | ✅ |
 | `citas` | disponibilidad real, agendar, consultar, cancelar | ✅ |
-| `socios` | padrón, planes, vencimientos (ACBfit) | ⬜ falta decidir de dónde sale el padrón |
+| `socios` | padrón, planes, vencimientos (ACBfit) | ⬜ el padrón sale de EVO, por API |
 | `tareas` | tablero interno contra DTOS (Nanoplush) | ⬜ el más fácil: DTOS ya tiene API |
 
 `tienda` es genérico: los atributos salen del propio catálogo, así que sirve
@@ -86,9 +86,14 @@ financiero vive en DTOS.
 
 **Por decidir contigo**
 
-- **ACBfit**: dónde vive el padrón hoy (hoja de cálculo, sistema con API, o nada).
-  Si no hay nada, se hace igual que el catálogo y el módulo queda siendo su sistema.
 - **Nanoplush**: confirmar que el bot administrativo va contra las tareas de DTOS.
+  Puede que el primer cliente de la plataforma sea CompuXtreme y no Nanoplush.
+
+**Resuelto**
+
+- **ACBfit**: el padrón vive en **EVO**, el software brasileño con el que el gym
+  gestiona todo. Tiene API y ya la hemos usado, así que el módulo `socios` no
+  necesita inventar el padrón: lo lee. Queda como trabajo, no como decisión.
 
 **Trabajo pendiente**
 
