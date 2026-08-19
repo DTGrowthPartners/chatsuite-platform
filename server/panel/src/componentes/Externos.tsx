@@ -25,7 +25,13 @@ function Tarjeta({ e, indice }: { e: Externo; indice: number }) {
       <Card className="group h-full gap-1.5 p-4 transition-colors hover:border-white/18">
         <div className="flex items-center gap-2">
           <Icono className="size-4 shrink-0 text-muted-foreground" />
-          <span className="min-w-0 flex-1 truncate text-sm font-medium">{e.nombre}</span>
+          <span className="min-w-0 truncate text-sm font-medium">{e.nombre}</span>
+          {e.migrando && (
+            <span className="shrink-0 rounded-full border border-amber-500/40 bg-amber-500/12 px-1.5 py-px text-[0.65rem] font-medium text-amber-400">
+              se reemplaza
+            </span>
+          )}
+          <span className="flex-1" />
           {/* El punto es `title` nativo y no un Tooltip: el trigger de Base UI
               renderiza un boton, y esto vive dentro de un <a>. */}
           <span

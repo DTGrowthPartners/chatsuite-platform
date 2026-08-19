@@ -32,6 +32,9 @@ export type Externo = {
   nota: string;
   url: string;
   vivo: boolean;
+  // Lo reemplaza un tenant de la plataforma: su nombre queda libre para poder
+  // darlo de alta, y los dos conviven hasta que se apague el viejo.
+  migrando?: boolean;
 };
 
 // El perfil del bot es un JSON abierto a proposito: cada modulo agrega sus

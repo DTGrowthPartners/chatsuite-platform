@@ -52,7 +52,11 @@ export const EXTERNOS = [
     host: 'compuxtreme.dtgrowthpartners.com',
     ruta: '/',
     puerto: 3037,
-    nota: 'Chatsuite propio con Evolution aparte.',
+    nota: 'Se reemplaza por compuxtreme.dtgp.ai, dado de alta desde el panel.',
+    // Lo sustituye un tenant de la plataforma, asi que su nombre tiene que
+    // quedar libre para poder darlo de alta. Sigue listado —y sigue vivo— hasta
+    // que el nuevo este andando y este se pueda apagar.
+    migrando: true,
   },
   {
     slug: 'ceenford',
@@ -95,4 +99,12 @@ export const NOMBRES_TOMADOS = ['acbfit', 'cantina', 'nanoplush', 'tubodegactg']
 // Los externos que viven bajo dtgp.ai son los unicos que un alta podria pisar:
 // el resto esta en otro dominio. Se reservan todos igual, para que el nombre de
 // un cliente no acabe repartido entre dos dominios distintos.
-export const SLUGS_EXTERNOS = [...EXTERNOS.map((e) => e.slug), ...NOMBRES_TOMADOS];
+//
+// Los que estan `migrando` quedan fuera: su nombre hace falta libre justamente
+// para darlos de alta en la plataforma. Como el viejo vive en otro dominio, el
+// alta no lo pisa —son dos sitios de nginx distintos— y los dos conviven hasta
+// que se apague el viejo.
+export const SLUGS_EXTERNOS = [
+  ...EXTERNOS.filter((e) => !e.migrando).map((e) => e.slug),
+  ...NOMBRES_TOMADOS,
+];

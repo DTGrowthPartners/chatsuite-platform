@@ -87,7 +87,7 @@ financiero vive en DTOS.
 **Por decidir contigo**
 
 - **Nanoplush**: confirmar que el bot administrativo va contra las tareas de DTOS.
-  Puede que el primer cliente de la plataforma sea CompuXtreme y no Nanoplush.
+  El primer cliente de la plataforma es **CompuXtreme**, no Nanoplush.
 
 **Resuelto**
 

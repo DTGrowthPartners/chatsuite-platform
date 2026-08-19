@@ -32,7 +32,18 @@ real.**
 
 ## Lo que hay que hacer ahora
 
-### Primer cliente real
+### CompuXtreme, primer cliente de la plataforma
+
+Va en `compuxtreme.dtgp.ai`, dado de alta **desde el panel**, y reemplaza al
+Chatsuite que hoy vive en `compuxtreme.dtgrowthpartners.com`. El viejo se queda
+corriendo hasta que el nuevo esté andando.
+
+**Los Chatsuites nuevos salen sin SMTP** —`SMTP_ADDRESS` vacío—, igual que las
+instancias viejas: hoy ningún Chatwoot del VPS envía correo. El alta funciona,
+pero el cliente no podrá invitar agentes por correo ni recuperar contraseña; se
+crean desde `/super_admin` mientras tanto.
+
+### Antes: primer cliente real
 
 El wildcard `*.dtgp.ai -> 149.56.133.201` ya está en Namecheap: un nombre
 cualquiera resuelve, así que el paso 8 (SSL) ya no muere con `NXDOMAIN`. Los
@@ -176,7 +187,7 @@ reservados, así que agregar una instancia la reserva sola.
 | Agente Dairo (bot de DTGP) | `dairo.dtgp.ai/admin/` | 8011 |
 | Cantina (bot) | `cantinabot.dtgp.ai/admin/` | 8012 |
 | Tu Bodega (Chatsuite) | `tubodega.dtgp.ai` | 3036 |
-| CompuXtreme (Chatsuite) | `compuxtreme.dtgrowthpartners.com` | 3037 |
+| CompuXtreme (Chatsuite) — **se reemplaza** | `compuxtreme.dtgrowthpartners.com` | 3037 |
 | Ceenford (Chatwoot) | `ceenfordsuite.dtgrowthpartners.com` | 3035 |
 | Equilibrio Clinic (Chatwoot) | `equilibriocs.dtgrowthpartners.com` | 3034 |
 | Chatsuite DTGP (Chatwoot interno) | `chatsuitetdairo.dtgrowthpartners.com` | 3033 |
@@ -184,8 +195,13 @@ reservados, así que agregar una instancia la reserva sola.
 **Los bots se abren por `/admin`; los Chatwoots, por la raíz.**
 
 Un alta con uno de esos slugs sobrescribiría su sitio de nginx y lo tumbaría sin
-avisar —gana el último sitio escrito—, así que los 7 están reservados, más
-`acbfit`, `cantina`, `nanoplush` y `tubodegactg`, que son marcas ya en uso.
+avisar —gana el último sitio escrito—, así que están reservados, más `acbfit`,
+`cantina`, `nanoplush` y `tubodegactg`, que son marcas ya en uso. Son 43 nombres.
+
+**`compuxtreme` es la excepción**: lo reemplaza un tenant de la plataforma
+(`compuxtreme.dtgp.ai`), así que lleva `migrando: true` en `externos.js` y su
+nombre queda libre para poder darlo de alta. Los dos conviven —viven en dominios
+distintos, el alta no toca el viejo— hasta que el nuevo esté andando.
 
 Migrar las viejas a `chatsuite:base` es posible pero es otro proyecto, y no
 urge.
