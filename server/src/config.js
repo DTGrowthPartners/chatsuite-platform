@@ -6,6 +6,15 @@ import { SLUGS_EXTERNOS } from './externos.js';
 
 const aqui = path.dirname(fileURLToPath(import.meta.url));
 
+// Los secretos del panel —hoy las credenciales SMTP con las que los Chatsuites
+// de los clientes mandan correo— viven fuera del repo, en instalacion/panel.env.
+// Se cargan aqui y no con --env-file para que de igual como se lance el proceso:
+// pm2, node a secas o systemd. Si el archivo no esta, el panel arranca igual y
+// los Chatsuites salen sin correo, que es como estaban antes.
+try {
+  process.loadEnvFile(path.resolve(aqui, '..', '..', 'instalacion', 'panel.env'));
+} catch { /* sin archivo, sin SMTP */ }
+
 export const RAIZ_APP = path.resolve(aqui, '..');
 export const DIR_PLANTILLAS = path.join(RAIZ_APP, 'templates');
 export const DIR_PUBLICO = path.join(RAIZ_APP, 'public');

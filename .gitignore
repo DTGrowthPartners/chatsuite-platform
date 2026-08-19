@@ -23,6 +23,8 @@ server/public/
 # SECRETOS. La clave del panel se genera en la instalación y vive solo en el
 # servidor, con permisos 600.
 instalacion/clave-panel.txt
+# Credenciales SMTP con las que los Chatsuites de los clientes mandan correo.
+instalacion/panel.env
 .env
 .env.*
 *.pem

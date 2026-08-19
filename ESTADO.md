@@ -38,10 +38,16 @@ Va en `compuxtreme.dtgp.ai`, dado de alta **desde el panel**, y reemplaza al
 Chatsuite que hoy vive en `compuxtreme.dtgrowthpartners.com`. El viejo se queda
 corriendo hasta que el nuevo esté andando.
 
-**Los Chatsuites nuevos salen sin SMTP** —`SMTP_ADDRESS` vacío—, igual que las
-instancias viejas: hoy ningún Chatwoot del VPS envía correo. El alta funciona,
-pero el cliente no podrá invitar agentes por correo ni recuperar contraseña; se
-crean desde `/super_admin` mientras tanto.
+**Los Chatsuites nuevos ya mandan correo.** Salen como `noreply@dtgp.ai` por el
+servidor del propio VPS, firmados con el DKIM de dtgp.ai. Las credenciales viven
+en `instalacion/panel.env` (modo 600, fuera del repo) y las carga `config.js` al
+arrancar — no con `--env-file`, para que dé igual cómo se lance el proceso.
+
+Falta **publicar tres registros en Namecheap** para que el correo no caiga en
+spam: el TXT del DKIM (`mail._domainkey`), añadir `ip4:149.56.133.201` al SPF
+que ya existe —editándolo, dos SPF se invalidan entre sí— y un DMARC en
+`_dmarc` con `p=none`. Los MX no se tocan: son del reenvío de Namecheap y el VPS
+solo envía. Sin esos registros el correo sale igual, pero sin verificar.
 
 ### Antes: primer cliente real
 
