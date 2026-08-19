@@ -358,6 +358,11 @@ async def ver_prompt():
         "prompt": prompt_mod.construir(p, activos),
         "tools": [t["name"] for m in activos for t in m.tools(p)],
         "etiquetas": sorted(p.etiquetas_validas),
+        # La persona tal como saldría de los formularios. El panel la usa para
+        # sembrar el modo experto: quien lo enciende parte de lo que ya tenía en
+        # vez de una hoja en blanco, que es lo que hace que nadie lo use.
+        "persona_generada": prompt_mod.persona_generada(p),
+        "modo_experto": bool(p.get("persona.modo_experto", False)),
     }
 
 

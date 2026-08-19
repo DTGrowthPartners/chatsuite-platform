@@ -44,6 +44,9 @@ export const DATOS = {
   // Modulo citas
   'cierres.json': { tipo: 'json', vacio: [] },
   'citas.json': { tipo: 'json', vacio: [], soloLectura: true },
+  // El unico que no vive en data/: es el prompt escrito a mano del modo
+  // experto, y el motor lo lee de prompts/system.md.
+  'system.md': { tipo: 'texto', vacio: '', dir: 'prompts' },
 };
 
 export function puertosBotUsados() {
@@ -209,11 +212,16 @@ export function escribirPerfil(slug, perfil) {
 
 // --- archivos de datos -------------------------------------------------------
 
+/** data/ para casi todo; prompts/ para el prompt del modo experto. */
+const rutaDe = (slug, spec) => (spec.dir === 'prompts'
+  ? path.join(rutaBot(slug), 'prompts')
+  : rutaData(slug));
+
 export function leerDato(slug, archivo) {
   const spec = DATOS[archivo];
   if (!spec) throw new Error(`archivo no permitido: ${archivo}`);
   try {
-    const crudo = fs.readFileSync(path.join(rutaData(slug), archivo), 'utf8');
+    const crudo = fs.readFileSync(path.join(rutaDe(slug, spec), archivo), 'utf8');
     return spec.tipo === 'json' ? JSON.parse(crudo) : crudo;
   } catch (err) {
     if (err.code === 'ENOENT') return structuredClone(spec.vacio);
@@ -228,7 +236,7 @@ export function escribirDato(slug, archivo, contenido) {
   if (spec.tipo === 'json' && !Array.isArray(contenido)) {
     throw new Error(`${archivo} debe ser una lista`);
   }
-  const dir = rutaData(slug);
+  const dir = rutaDe(slug, spec);
   fs.mkdirSync(dir, { recursive: true });
   const destino = path.join(dir, archivo);
   const temporal = `${destino}.tmp`;

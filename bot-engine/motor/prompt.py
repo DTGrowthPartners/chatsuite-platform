@@ -89,6 +89,16 @@ def _persona(p) -> str:
     return "\n".join(lineas)
 
 
+def persona_generada(p) -> str:
+    """La persona compuesta desde los formularios, sin el modo experto.
+
+    Se expone para que el panel pueda sembrar el archivo del modo experto: el
+    salto de «lo edito con formularios» a «lo escribo entero» es mucho menor si
+    se empieza desde el texto que el bot ya estaba usando.
+    """
+    return _persona(p)
+
+
 def _escalamiento(p) -> str:
     motivos = p.get("persona.cuando_escalar", [])
     if not motivos:

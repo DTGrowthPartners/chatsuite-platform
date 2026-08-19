@@ -200,7 +200,7 @@ export function ConfiguradorBot({
 
       <div className="min-h-0 flex-1 overflow-y-auto pr-1">
         {pestana === 'whatsapp' ? <Whatsapp slug={slug} /> : null}
-        {pestana === 'prompt' ? <Prompt slug={slug} /> : null}
+        {pestana === 'prompt' ? <Prompt slug={slug} perfil={perfil} alCambiar={setPerfil} /> : null}
         {pestana === 'simulador' ? <Simulador slug={slug} /> : null}
         {pestana === 'metricas' ? <Metricas slug={slug} /> : null}
         {pestana === 'persona' ? <FormPersona perfil={perfil} alCambiar={setPerfil} /> : null}

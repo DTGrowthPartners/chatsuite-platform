@@ -113,7 +113,7 @@ export type Qr = {
 export type ArchivoDato =
   | 'negocio.md' | 'catalogo.json' | 'respuestas.json'
   | 'domicilios.json' | 'equipo.json' | 'pedidos.json'
-  | 'cierres.json' | 'citas.json';
+  | 'cierres.json' | 'citas.json' | 'system.md';
 
 export type Sistema = {
   memoria: { totalMB: number; usadaMB: number; disponibleMB: number };
@@ -207,7 +207,10 @@ export const api = {
     metricas: (slug: string, dias = 30) =>
       pedir<Metricas>(`/api/bot/metricas?slug=${encodeURIComponent(slug)}&dias=${dias}`),
     prompt: (slug: string) =>
-      pedir<{ prompt: string; tools: string[]; etiquetas: string[] }>(`/api/bot/prompt?slug=${encodeURIComponent(slug)}`),
+      pedir<{
+        prompt: string; tools: string[]; etiquetas: string[];
+        persona_generada: string; modo_experto: boolean;
+      }>(`/api/bot/prompt?slug=${encodeURIComponent(slug)}`),
     accion: (slug: string, accion: string) => enviar<{ job: string }>('/api/bot/accion', { slug, accion }),
   },
 
