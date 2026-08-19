@@ -434,12 +434,32 @@ export async function aprovisionar(slug, log) {
       log('  El Chatsuite quedo bien. Reintentalo desde la tarjeta del cliente.');
     }
   }
+
+  // WhatsApp va al final por lo mismo que el bot: necesita el dominio con
+  // certificado, y si falla no arrastra al resto. Queda con el QR listo; el
+  // enlace del bot con el inbox lo hace solo el vigilante al escanear, porque
+  // el inbox no existe hasta entonces.
+  if (obtener(slug).waAlAlta) {
+    const wa = obtener(slug).waAlAlta;
+    log('\n▶ WhatsApp del cliente');
+    try {
+      const evolution = await import('./evolution.js');
+      await evolution.preparar(slug, log);
+      await evolution.crearInstancia(slug, log, {
+        importarHistorial: Boolean(wa.importarHistorial),
+      });
+      log('✓ WhatsApp listo. Escanea el QR desde la tarjeta del cliente.');
+    } catch (err) {
+      log(`✗ WhatsApp no se pudo dejar listo: ${err.message}`);
+      log('  Lo demas quedo bien. Reintentalo con «WhatsApp: conectar el numero».');
+    }
+  }
 }
 
 /** Arma el registro del tenant antes de correr los pasos. */
 export function nuevoTenant({
   slug, nombre, color, emailAdmin, quitarFondo, logoExtension,
-  marca, sitio, locale, zonaHoraria, ciudad, bot,
+  marca, sitio, locale, zonaHoraria, ciudad, bot, whatsapp,
 }) {
   return {
     slug,
@@ -460,6 +480,11 @@ export function nuevoTenant({
       nombreAvisos: String(bot.nombreAvisos || '').trim(),
       horario: bot.horario || null,
     } : null,
+    // El historial SOLO se importa al escanear: si no se pide aqui, recuperarlo
+    // despues obliga a desconectar el numero y volver a escanear.
+    waAlAlta: whatsapp?.crear
+      ? { importarHistorial: Boolean(whatsapp.importarHistorial) }
+      : null,
     dominio: `${slug}.${DOMINIO_BASE}`,
     puerto: asignarPuerto(),
     color,

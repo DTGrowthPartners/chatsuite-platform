@@ -30,8 +30,11 @@ const secreto = (n = 32) => crypto.randomBytes(n).toString('hex');
 
 export function asignarPuerto() {
   const usados = new Set(leerEstado().tenants.map((t) => t.whatsapp?.puerto).filter(Boolean));
+  // Igual que con los bots: tenants.json no sabe de lo que se levanto a mano, y
+  // un puerto ocupado deja el contenedor en bucle sin un error claro.
+  const escuchando = bots.puertosEnEscucha();
   for (let p = PUERTO_EVO_MIN; p <= PUERTO_EVO_MAX; p += 1) {
-    if (!usados.has(p)) return p;
+    if (!usados.has(p) && !escuchando.has(p)) return p;
   }
   throw new Error('no quedan puertos libres para Evolution');
 }
@@ -246,6 +249,13 @@ export async function enlazarBot(slug, log) {
     }
   }
   log(`Inbox #${datos.inbox_id} «${datos.inbox}» enlazado al bot, con asignación automática apagada`);
+  // La marca la pone la propia funcion y no quien la llama: si la pusiera solo
+  // el vigilante, un enlace hecho a mano antes del escaneo lo dejaria sin marcar
+  // y el bot se reiniciaria otra vez al conectarse.
+  await actualizar((e) => {
+    const t = e.tenants.find((x) => x.slug === slug);
+    t.whatsapp = { ...(t.whatsapp || {}), enlazadoEn: new Date().toISOString() };
+  });
   return datos;
 }
 
@@ -274,6 +284,53 @@ export async function qr(slug) {
     // Ya conectado: Evolution devuelve el estado en vez de un QR.
     conexion: r?.instance?.state || null,
   };
+}
+
+// --- enlace automatico -------------------------------------------------------
+
+/**
+ * Enlaza el bot en cuanto el numero queda conectado.
+ *
+ * El enlace no se puede hacer al crear la instancia: el inbox no existe hasta
+ * que alguien escanea. Y era el paso que mas se olvidaba, con el peor sintoma
+ * posible —el bot no contesta y no hay ni un error en ningun log—, asi que el
+ * panel lo mira solo en vez de confiar en que alguien pulse el boton.
+ *
+ * Se vigila desde el servidor y no desde la pantalla porque el cliente escanea
+ * cuando puede, que casi nunca es mientras alguien mira el panel.
+ */
+const VIGILANCIA_MS = 60 * 1000;
+
+export async function enlazarAlConectar(log = console.log) {
+  for (const tenant of leerEstado().tenants) {
+    const wa = tenant.whatsapp;
+    if (!wa?.puerto || wa.enlazadoEn) continue;
+    if (!tenant.bot?.agentBotId) continue;
+
+    const e = await estado(tenant.slug).catch(() => null);
+    if (e?.conexion !== 'open') continue;
+
+    try {
+      log(`[${tenant.slug}] numero conectado: enlazando el bot al inbox`);
+      const r = await enlazarBot(tenant.slug, (l) => log(`[${tenant.slug}] ${l}`));
+      await actualizar((est) => {
+        const t = est.tenants.find((x) => x.slug === tenant.slug);
+        t.whatsapp = { ...t.whatsapp, estado: 'conectado' };
+      });
+      log(`[${tenant.slug}] bot enlazado al inbox ${r?.inbox_id ?? '?'}`);
+    } catch (err) {
+      // Sin marca de enlazado: se reintenta en la vuelta siguiente.
+      log(`[${tenant.slug}] no se pudo enlazar el bot todavia: ${err.message}`);
+    }
+  }
+}
+
+export function vigilarConexiones(log = console.log) {
+  const vuelta = () => enlazarAlConectar(log).catch((err) => log(`vigilancia: ${err.message}`));
+  vuelta();
+  const t = setInterval(vuelta, VIGILANCIA_MS);
+  t.unref?.();
+  return t;
 }
 
 export async function desconectar(slug, log) {

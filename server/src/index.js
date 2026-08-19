@@ -226,6 +226,7 @@ const rutas = {
       zonaHoraria: String(cuerpo.zonaHoraria || '').trim(),
       ciudad: String(cuerpo.ciudad || '').trim(),
       bot: cuerpo.bot,
+      whatsapp: cuerpo.whatsapp,
       color: cuerpo.color.startsWith('#') ? cuerpo.color.toUpperCase() : `#${cuerpo.color.toUpperCase()}`,
       emailAdmin: cuerpo.emailAdmin.trim(),
       quitarFondo: cuerpo.quitarFondo,
@@ -555,4 +556,7 @@ const servidor = http.createServer(async (req, res) => {
 
 servidor.listen(PUERTO_PANEL, '127.0.0.1', () => {
   console.log(`panel de Chatsuite escuchando en http://127.0.0.1:${PUERTO_PANEL}`);
+  // Un numero se escanea cuando el cliente puede, casi nunca con el panel
+  // abierto: el enlace del bot con su inbox se vigila desde aqui.
+  evolution.vigilarConexiones();
 });

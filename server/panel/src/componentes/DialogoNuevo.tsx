@@ -63,6 +63,12 @@ export function DialogoNuevo({ abierto, dominioBase, alCerrar, alCreado }: Props
   const [telefonoAvisos, setTelefonoAvisos] = useState('');
   const [horaInicio, setHoraInicio] = useState(8);
   const [horaFin, setHoraFin] = useState(20);
+  // Deja Evolution levantado y la instancia creada, con el QR esperando en la
+  // tarjeta. Escanear es lo unico que no puede hacer el panel.
+  const [conWhatsapp, setConWhatsapp] = useState(false);
+  // El historial se importa SOLO al escanear: si no se pide aqui, recuperarlo
+  // despues obliga a desconectar el numero y volver a escanear.
+  const [importarHistorial, setImportarHistorial] = useState(false);
 
   // Si el usuario ya eligio color a mano, subir otro logo no se lo pisa.
   const colorManual = useRef(false);
@@ -75,6 +81,7 @@ export function DialogoNuevo({ abierto, dominioBase, alCerrar, alCreado }: Props
     setIdioma('es'); setZona('America/Bogota'); setConBot(false); setAsistente('');
     setModulosBot(['tienda']); setDomicilios(false); setTelefonoAvisos('');
     setHoraInicio(8); setHoraFin(20);
+    setConWhatsapp(false); setImportarHistorial(false);
     colorManual.current = false;
   }
 
@@ -147,6 +154,7 @@ export function DialogoNuevo({ abierto, dominioBase, alCerrar, alCreado }: Props
           nombreAvisos: nombre.trim(),
           horario: { inicio: horaInicio, fin: horaFin },
         } : null,
+        whatsapp: conWhatsapp ? { crear: true, importarHistorial } : null,
       });
       toast.success(`${nombre} en marcha`, { description: `Aprovisionando ${r.dominio}` });
       alCreado({ id: r.job, slug: r.slug, titulo: `Aprovisionando ${r.dominio}` });
@@ -450,6 +458,41 @@ export function DialogoNuevo({ abierto, dominioBase, alCerrar, alCreado }: Props
                         </p>
                       </div>
                     </div>
+                  )}
+                </div>
+
+                <div className="grid gap-2.5 rounded-lg border p-3 sm:col-span-2 sm:grid-cols-2 sm:items-start">
+                  <div className="grid gap-1.5">
+                    <div className="flex items-center gap-2.5">
+                      <Checkbox
+                        id="wa" checked={conWhatsapp}
+                        onCheckedChange={(v) => setConWhatsapp(v === true)}
+                      />
+                      <Label htmlFor="wa" className="font-normal">
+                        Dejar el WhatsApp listo para escanear
+                      </Label>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Levanta el WhatsApp del cliente y deja el QR esperando en su
+                      tarjeta. En cuanto lo escaneen, el bot se enlaza solo con el
+                      buzón; escanear es lo único que no podemos hacer nosotros.
+                    </p>
+                  </div>
+                  {conWhatsapp && (
+                    <label className="flex cursor-pointer items-start gap-2.5 rounded-md border p-2.5 text-sm">
+                      <input
+                        type="checkbox" className="mt-0.5" checked={importarHistorial}
+                        onChange={(e) => setImportarHistorial(e.target.checked)}
+                      />
+                      <span>
+                        <span className="font-medium">Traer los chats de los últimos 90 días</span>
+                        <span className="block text-xs text-muted-foreground">
+                          Solo ocurre al escanear. Si se olvida, recuperarlos obliga a
+                          desconectar el número y volver a escanear. Ojo: con un número
+                          de pruebas mete esas conversaciones en el CRM del cliente.
+                        </span>
+                      </span>
+                    </label>
                   )}
                 </div>
               </div>
