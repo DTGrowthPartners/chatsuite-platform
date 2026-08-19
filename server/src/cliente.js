@@ -37,6 +37,13 @@ const PERMITIDAS = new Set([
   'GET /api/bot/estado',
   'GET /api/bot/metricas',
   'POST /api/bot/simular',
+  'GET /api/bot/prompt',
+  // WhatsApp, solo de lectura: el cliente ve si su numero sigue conectado y
+  // reescanea el QR si se cayo. Desconectar, rehacer o eliminar la instancia
+  // NO estan aqui a proposito: rehacer reimporta historial y eliminar borra la
+  // sesion, y las dos se hacen con nosotros delante.
+  'GET /api/whatsapp/estado',
+  'GET /api/whatsapp/qr',
 ]);
 
 // Del perfil, el cliente solo escribe estas dos secciones: la persona del bot y
@@ -132,6 +139,42 @@ function servirEstatico(res, relativo) {
   fs.createReadStream(archivo).pipe(res);
 }
 
+/**
+ * El boton flotante, pintado con la marca del cliente.
+ *
+ * El color se sustituye al servir y no en el navegador: asi el boton nace del
+ * color correcto y no parpadea del azul por defecto al de la marca.
+ */
+function servirInyector(res, tenant) {
+  const plantilla = fs.readFileSync(path.join(DIR_CLIENTE, 'inyector.js'), 'utf8');
+  const color = /^#[0-9a-fA-F]{6}$/.test(tenant.color || '') ? tenant.color : '#1f93ff';
+  const js = plantilla
+    .replaceAll('{{COLOR}}', color)
+    .replaceAll('{{TEXTO}}', colorTexto(color));
+  res.writeHead(200, {
+    'content-type': 'text/javascript; charset=utf-8',
+    // Corto: si cambia la marca del cliente, el boton se pone al dia solo.
+    'cache-control': 'public, max-age=300',
+  });
+  res.end(js);
+}
+
+/**
+ * Blanco o negro segun el color de fondo.
+ *
+ * Con marcas claras —un amarillo, un lima— el texto blanco desaparece. La
+ * formula es la luminancia relativa de WCAG; el umbral 0.55 es donde deja de
+ * leerse bien en pantalla.
+ */
+function colorTexto(hex) {
+  const canal = (i) => {
+    const v = parseInt(hex.slice(1 + i * 2, 3 + i * 2), 16) / 255;
+    return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+  };
+  const luz = 0.2126 * canal(0) + 0.7152 * canal(1) + 0.0722 * canal(2);
+  return luz > 0.55 ? '#111827' : '#ffffff';
+}
+
 // --- entrada -----------------------------------------------------------------
 
 const json = (res, codigo, datos) => {
@@ -174,9 +217,10 @@ export async function atender(req, res, url, rutas) {
 
   const resto = url.pathname.replace(/^\/cliente\/?/, '');
 
-  // El inyector es JS publico y sin datos: es el que dibuja el boton flotante
-  // dentro de Chatwoot, y tiene que cargar antes de que nadie se autentique.
-  if (resto === 'inyector.js') return servirEstatico(res, 'inyector.js');
+  // El inyector es JS publico y sin datos: dibuja el boton flotante dentro de
+  // Chatwoot y tiene que cargar antes de que nadie se autentique. Se sirve
+  // generado, no estatico, porque lleva el color de marca del cliente.
+  if (resto === 'inyector.js') return servirInyector(res, tenant);
   if (!resto.startsWith('api/')) return servirEstatico(res, resto || DOC_INICIAL);
 
   if (!tenant.bot) return json(res, 404, { error: 'este cliente todavia no tiene bot' });

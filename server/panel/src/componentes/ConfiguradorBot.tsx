@@ -12,7 +12,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { AlertTriangle, Save, Tags } from 'lucide-react';
 import { toast } from 'sonner';
 
-import { api, type EstadoBot, type PerfilBot } from '@/api';
+import { api, type EstadoBot, type EstadoWhatsapp, type PerfilBot } from '@/api';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Selector } from '@/componentes/bot/campos';
@@ -20,6 +20,8 @@ import { FormOperacion, FormPersona } from '@/componentes/bot/formularios';
 import { EditorCatalogo, EditorLista, EditorNegocio } from '@/componentes/bot/listas';
 import { FormAgenda } from '@/componentes/bot/Agenda';
 import { Metricas } from '@/componentes/bot/Metricas';
+import { Prompt } from '@/componentes/bot/Prompt';
+import { Whatsapp, conectado } from '@/componentes/bot/Whatsapp';
 import { Simulador } from '@/componentes/bot/Simulador';
 
 const CICLO = [
@@ -35,7 +37,8 @@ export const COLOR_CICLO: Record<string, string> = {
 };
 
 type Pestana = 'simulador' | 'metricas' | 'persona' | 'negocio' | 'catalogo'
-  | 'agenda' | 'cierres' | 'respuestas' | 'domicilios' | 'equipo' | 'operacion';
+  | 'agenda' | 'cierres' | 'respuestas' | 'domicilios' | 'equipo' | 'operacion'
+  | 'whatsapp' | 'prompt';
 
 export type Modo = 'panel' | 'cliente';
 
@@ -49,6 +52,7 @@ export function ConfiguradorBot({
 }) {
   const [perfil, setPerfil] = useState<PerfilBot | null>(null);
   const [estado, setEstado] = useState<EstadoBot | null>(null);
+  const [wa, setWa] = useState<EstadoWhatsapp | null>(null);
   const [pestana, setPestana] = useState<Pestana>(modo === 'cliente' ? 'catalogo' : 'simulador');
   const [guardando, setGuardando] = useState(false);
 
@@ -65,6 +69,16 @@ export function ConfiguradorBot({
   }, [slug, alSinBot]);
 
   useEffect(() => { void cargar(); }, [cargar]);
+
+  // El estado del numero se mira aparte del perfil y se repregunta: una sesion
+  // de WhatsApp se cae sola, sin que nadie toque nada, y el aviso tiene que
+  // aparecer aunque la pantalla lleve horas abierta.
+  useEffect(() => {
+    const mirar = () => api.whatsapp.estado(slug).then(setWa).catch(() => {});
+    void mirar();
+    const t = setInterval(mirar, 60000);
+    return () => clearInterval(t);
+  }, [slug]);
 
   async function guardar() {
     if (!perfil) return;
@@ -92,11 +106,16 @@ export function ConfiguradorBot({
 
   if (!perfil) return <p className="py-10 text-center text-sm text-muted-foreground">cargando…</p>;
 
+  // Sin WhatsApp aprovisionado no hay nada caido que avisar: es un bot que
+  // todavia no se ha conectado, no uno que dejo de funcionar.
+  const waCaido = Boolean(wa && !wa.sinWhatsapp && !conectado(wa));
+
   const modulos = perfil.modulos || [];
   const conTienda = modulos.includes('tienda');
   const conCitas = modulos.includes('citas');
 
   const pestanas: { id: Pestana; texto: string; visible?: boolean }[] = [
+    { id: 'whatsapp', texto: waCaido ? 'WhatsApp ⚠️' : 'WhatsApp' },
     { id: 'catalogo', texto: 'Catálogo', visible: conTienda },
     { id: 'agenda', texto: 'Agenda', visible: conCitas },
     { id: 'cierres', texto: 'Días cerrados', visible: conCitas },
@@ -107,6 +126,7 @@ export function ConfiguradorBot({
     { id: 'equipo', texto: 'Equipo' },
     { id: 'simulador', texto: 'Simulador' },
     { id: 'metricas', texto: 'Métricas' },
+    { id: 'prompt', texto: 'Instrucciones' },
     { id: 'operacion', texto: 'Operación', visible: !esCliente },
   ];
   // En nuestro panel el simulador va primero: es la pantalla con la que se deja
@@ -118,6 +138,20 @@ export function ConfiguradorBot({
 
   return (
     <>
+      {waCaido && pestana !== 'whatsapp' ? (
+        <button
+          type="button"
+          onClick={() => setPestana('whatsapp')}
+          className="flex items-center gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-left text-sm text-amber-500 transition-colors hover:bg-amber-500/15"
+        >
+          <AlertTriangle className="size-4 shrink-0" />
+          <span>
+            <strong>Tu WhatsApp se desconectó.</strong> El asistente no está recibiendo
+            mensajes — toca aquí para reconectarlo con un código.
+          </span>
+        </button>
+      ) : null}
+
       <div className="flex flex-wrap items-center gap-3 rounded-lg border p-3">
         <Badge className={COLOR_CICLO[perfil.estado]}>{perfil.estado}</Badge>
         {esCliente ? (
@@ -165,6 +199,8 @@ export function ConfiguradorBot({
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+        {pestana === 'whatsapp' ? <Whatsapp slug={slug} /> : null}
+        {pestana === 'prompt' ? <Prompt slug={slug} /> : null}
         {pestana === 'simulador' ? <Simulador slug={slug} /> : null}
         {pestana === 'metricas' ? <Metricas slug={slug} /> : null}
         {pestana === 'persona' ? <FormPersona perfil={perfil} alCambiar={setPerfil} /> : null}
