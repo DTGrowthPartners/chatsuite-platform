@@ -239,6 +239,31 @@ export function escribirDato(slug, archivo, contenido) {
 }
 
 /** Guarda la foto de un producto y devuelve el nombre del archivo. */
+/**
+ * El siguiente id de producto de este cliente.
+ *
+ * Se toma el mayor y se suma uno, en vez de rellenar huecos: un id reciclado
+ * heredaria la foto del producto borrado —los archivos se llaman por id— y el
+ * bot mandaria la imagen equivocada, que es de los fallos mas dificiles de ver.
+ * Por eso ademas cuentan las fotos que quedaron en disco, no solo el catalogo.
+ */
+export function siguienteIdProducto(slug) {
+  const numeros = [0];
+  const anotar = (texto) => {
+    const m = /^p(\d+)$/i.exec(String(texto || '').trim());
+    if (m) numeros.push(Number(m[1]));
+  };
+
+  for (const producto of leerDato(slug, 'catalogo.json') || []) anotar(producto?.id);
+  try {
+    for (const archivo of fs.readdirSync(path.join(rutaData(slug), 'catalogo-fotos'))) {
+      anotar(path.parse(archivo).name);
+    }
+  } catch { /* todavia no hay fotos */ }
+
+  return `p${String(Math.max(...numeros) + 1).padStart(3, '0')}`;
+}
+
 export function guardarFoto(slug, id, base64) {
   const m = /^data:image\/(png|jpeg|jpg|webp);base64,(.+)$/s.exec(base64 || '');
   if (!m) throw new Error('la foto debe ser PNG, JPG o WEBP');

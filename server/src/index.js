@@ -327,6 +327,12 @@ const rutas = {
     }
   },
 
+  'GET /api/bot/id-producto': async (req, res, url) => {
+    const slug = url.searchParams.get('slug');
+    if (!obtener(slug)) return json(res, 404, { error: 'no existe' });
+    json(res, 200, { id: bots.siguienteIdProducto(slug) });
+  },
+
   'POST /api/bot/foto': async (req, res) => {
     const { slug, id, foto } = await leerCuerpo(req);
     if (!obtener(slug)) return json(res, 404, { error: 'no existe' });

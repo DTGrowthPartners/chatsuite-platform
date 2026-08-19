@@ -136,15 +136,39 @@ export function EditorCatalogo({ slug }: { slug: string }) {
 
   const cambiar = (i: number, nueva: Fila) => setFilas(filas.map((f, j) => (j === i ? nueva : f)));
 
+  /**
+   * El id no lo escribe nadie: lo pone el sistema al crear el producto.
+   *
+   * Se pide al servidor, que mira el catálogo Y las fotos que quedaron en disco
+   * para no reciclar uno: un id repetido heredaría la foto del producto borrado.
+   * Al mayor de esos se le suma lo que ya haya en pantalla sin guardar, porque
+   * se pueden añadir tres productos seguidos antes de tocar Guardar.
+   */
+  async function idNuevo(actuales: Fila[]) {
+    const { id } = await api.bot.idProducto(slug);
+    const numero = (v: unknown) => Number(/^p(\d+)$/i.exec(String(v ?? '').trim())?.[1] || 0);
+    const tope = Math.max(numero(id) - 1, ...actuales.map((f) => numero(f.id)));
+    return `p${String(tope + 1).padStart(3, '0')}`;
+  }
+
+  async function agregar() {
+    try {
+      setFilas([...filas!, { id: await idNuevo(filas!), nombre: '', precio: null, imagen: '' }]);
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+  }
+
   async function subirFoto(i: number, archivo: File) {
     const fila = filas![i];
-    const id = String(fila.id || '').trim();
-    if (!id) { toast.error('primero ponle un id al producto'); return; }
     try {
+      // Un producto de antes de los ids automáticos puede no tener: se le pone
+      // en el momento, para que subir la foto nunca dependa de otro campo.
+      const id = String(fila.id || '').trim() || await idNuevo(filas!);
       const dataUrl = await leerArchivo(archivo);
       const { imagen } = await api.bot.foto(slug, id, dataUrl);
-      cambiar(i, { ...fila, imagen });
-      toast.success('foto subida', { description: imagen });
+      cambiar(i, { ...fila, id, imagen });
+      toast.success('foto subida', { description: 'recuerda Guardar para que el bot la use' });
     } catch (e) {
       toast.error((e as Error).message);
     }
@@ -166,12 +190,10 @@ export function EditorCatalogo({ slug }: { slug: string }) {
         {filas.map((p, i) => (
           // eslint-disable-next-line react/no-array-index-key
           <div key={i} className="grid gap-2 rounded-lg border p-3 sm:grid-cols-3">
-            <div>
-              <span className="mb-1 block text-xs text-muted-foreground">id</span>
-              <Texto valor={String(p.id ?? '')} alCambiar={(v) => cambiar(i, { ...p, id: v })} />
-            </div>
-            <div>
-              <span className="mb-1 block text-xs text-muted-foreground">Nombre</span>
+            <div className="sm:col-span-2">
+              <span className="mb-1 block text-xs text-muted-foreground">
+                Nombre <span className="font-mono opacity-60">· {String(p.id ?? 'sin id')}</span>
+              </span>
               <Texto valor={String(p.nombre ?? '')} alCambiar={(v) => cambiar(i, { ...p, nombre: v })} />
             </div>
             <div>
@@ -224,7 +246,7 @@ export function EditorCatalogo({ slug }: { slug: string }) {
       <Button
         variant="outline"
         className="justify-self-start border-dashed"
-        onClick={() => setFilas([...filas, { id: '', nombre: '', precio: null, imagen: '' }])}
+        onClick={() => void agregar()}
       >
         + producto
       </Button>

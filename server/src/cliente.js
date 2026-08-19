@@ -33,6 +33,7 @@ const PERMITIDAS = new Set([
   'PUT /api/bot/perfil',
   'GET /api/bot/dato',
   'PUT /api/bot/dato',
+  'GET /api/bot/id-producto',
   'POST /api/bot/foto',
   'GET /api/bot/estado',
   'GET /api/bot/metricas',

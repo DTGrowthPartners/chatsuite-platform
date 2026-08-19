@@ -196,6 +196,8 @@ export const api = {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ slug, archivo, contenido }),
       }),
+    idProducto: (slug: string) =>
+      pedir<{ id: string }>(`/api/bot/id-producto?slug=${encodeURIComponent(slug)}`),
     foto: (slug: string, id: string, foto: string) =>
       enviar<{ imagen: string }>('/api/bot/foto', { slug, id, foto }),
     estado: (slug: string) => pedir<EstadoBot>(`/api/bot/estado?slug=${encodeURIComponent(slug)}`),
