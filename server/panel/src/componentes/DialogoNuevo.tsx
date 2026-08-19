@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { cn } from '@/lib/utils';
 
 type Props = {
   abierto: boolean;
@@ -44,6 +45,9 @@ export function DialogoNuevo({ abierto, dominioBase, alCerrar, alCreado }: Props
   const [zona, setZona] = useState('America/Bogota');
   const [conBot, setConBot] = useState(false);
   const [asistente, setAsistente] = useState('');
+  // Que sabe hacer el bot. Se elige aqui y no despues porque decide las
+  // etiquetas que se crean en Chatsuite y las pestañas del configurador.
+  const [moduloBot, setModuloBot] = useState<'tienda' | 'citas'>('tienda');
 
   // Si el usuario ya eligio color a mano, subir otro logo no se lo pisa.
   const colorManual = useRef(false);
@@ -94,7 +98,7 @@ export function DialogoNuevo({ abierto, dominioBase, alCerrar, alCreado }: Props
         slug, nombre, color, emailAdmin: email, quitarFondo, logo,
         marca: marca.trim(), sitio: sitio.trim(), ciudad: ciudad.trim(),
         locale: idioma, zonaHoraria: zona,
-        bot: conBot ? { crear: true, asistente: asistente.trim(), modulo: 'tienda' } : null,
+        bot: conBot ? { crear: true, asistente: asistente.trim(), modulo: moduloBot } : null,
       });
       toast.success(`${nombre} en marcha`, { description: `Aprovisionando ${r.dominio}` });
       alCreado({ id: r.job, slug: r.slug, titulo: `Aprovisionando ${r.dominio}` });
@@ -298,12 +302,43 @@ export function DialogoNuevo({ abierto, dominioBase, alCerrar, alCreado }: Props
                     </p>
                   </div>
                   {conBot && (
-                    <div className="grid gap-2">
-                      <Label htmlFor="asistente">Cómo se llama el asistente</Label>
-                      <Input
-                        id="asistente" placeholder="Sofía"
-                        value={asistente} onChange={(e) => setAsistente(e.target.value)}
-                      />
+                    <div className="grid gap-3">
+                      <div className="grid gap-2">
+                        <Label htmlFor="asistente">Cómo se llama el asistente</Label>
+                        <Input
+                          id="asistente" placeholder="Sofía"
+                          value={asistente} onChange={(e) => setAsistente(e.target.value)}
+                        />
+                      </div>
+                      <div className="grid gap-1.5">
+                        <Label>Qué hace</Label>
+                        <div className="grid gap-1.5">
+                          {([
+                            ['tienda', 'Vende', 'catálogo, fotos, pedidos y domicilios'],
+                            ['citas', 'Agenda', 'servicios, horarios y cancelaciones'],
+                          ] as const).map(([id, titulo, detalle]) => (
+                            <label
+                              key={id}
+                              className={cn(
+                                'flex cursor-pointer items-start gap-2.5 rounded-md border p-2.5 text-sm transition-colors',
+                                moduloBot === id ? 'border-primary/50 bg-primary/8' : 'hover:border-white/18',
+                              )}
+                            >
+                              <input
+                                type="radio" name="modulo" className="mt-0.5" checked={moduloBot === id}
+                                onChange={() => setModuloBot(id)}
+                              />
+                              <span>
+                                <span className="font-medium">{titulo}</span>
+                                <span className="block text-xs text-muted-foreground">{detalle}</span>
+                              </span>
+                            </label>
+                          ))}
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          Se puede cambiar después, en Operación.
+                        </p>
+                      </div>
                     </div>
                   )}
                 </div>

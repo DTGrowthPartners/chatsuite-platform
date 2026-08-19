@@ -120,6 +120,28 @@ export function perfilPorDefecto(tenant) {
       pdf: { activo: true, titulo: `Catalogo ${tenant.nombre}` },
       domicilios: { activo: false, etiqueta: 'zona', ciudad: '' },
     },
+    // Va siempre, aunque el modulo este apagado, igual que `tienda`: el editor
+    // tolera que falte, pero un bot de citas sin horario no tiene un solo hueco
+    // libre y contesta "no hay cupo" a todo. Se arranca con L-V y corte de
+    // almuerzo, que es lo mas comun, y el cliente lo ajusta.
+    citas: {
+      agenda: 'propia',
+      duracion_min: 30,
+      paso_min: 30,
+      anticipacion_min: 60,
+      direccion: '',
+      servicios: [],
+      profesionales: [],
+      horario: {
+        lunes: [{ desde: '08:00', hasta: '12:00' }, { desde: '14:00', hasta: '18:00' }],
+        martes: [{ desde: '08:00', hasta: '12:00' }, { desde: '14:00', hasta: '18:00' }],
+        miercoles: [{ desde: '08:00', hasta: '12:00' }, { desde: '14:00', hasta: '18:00' }],
+        jueves: [{ desde: '08:00', hasta: '12:00' }, { desde: '14:00', hasta: '18:00' }],
+        viernes: [{ desde: '08:00', hasta: '12:00' }, { desde: '14:00', hasta: '18:00' }],
+        sabado: null,
+        domingo: null,
+      },
+    },
     etiquetas: [
       { nombre: 'pedido', titulo: '📦 Pedidos' },
       { nombre: 'cotizacion', titulo: '💬 Cotizaciones' },
@@ -138,11 +160,28 @@ export function perfilPorDefecto(tenant) {
  * sembrar aqui deja reintentar el alta del bot sin pisar lo ya configurado a
  * mano, salvo los campos que el alta si define.
  */
+// El catalogo de etiquetas es cerrado —Chatwoot crea al vuelo cualquiera que
+// reciba—, asi que tiene que corresponder a lo que el bot hace: «pedido» y
+// «domicilio» no le sirven a una clinica, ni «reagenda» a una tienda.
+const ETIQUETAS_POR_MODULO = {
+  citas: [
+    { nombre: 'cita', titulo: '📅 Citas' },
+    { nombre: 'reagenda', titulo: '🔄 Reagendadas' },
+    { nombre: 'cancelacion', titulo: '❌ Canceladas' },
+    { nombre: 'reclamo', titulo: '⚠️ Reclamos' },
+    { nombre: 'seguimiento', titulo: '🔁 Seguimiento' },
+  ],
+};
+
 export function sembrarPerfil(slug, opciones = {}) {
   const perfil = leerPerfil(slug);
   if (!perfil) return;
   if (opciones.asistente) perfil.persona.nombre = opciones.asistente;
-  if (opciones.modulo) perfil.modulos = [...new Set([opciones.modulo])];
+  if (opciones.modulo) {
+    perfil.modulos = [...new Set([opciones.modulo])];
+    const etiquetas = ETIQUETAS_POR_MODULO[opciones.modulo];
+    if (etiquetas) perfil.etiquetas = etiquetas;
+  }
   escribirPerfil(slug, perfil);
 }
 

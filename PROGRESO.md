@@ -39,7 +39,7 @@ imagen Docker de 4 GB por cliente y un bot armado a mano.
 
 1. **Panel → + Nuevo cliente.** Nombre, subdominio, correo y logo. En *Más
    opciones*: marca comercial, sitio, idioma, zona horaria, ciudad y si se crea
-   el bot de una vez. Tarda ~3 minutos.
+   el bot de una vez —y ahí, **qué hace: vender o agendar**—. Tarda ~3 minutos.
 2. **Tarjeta → Bot: configurar y probar.** Se configura por pestañas y se afina
    en el **simulador**, que corre el bot de verdad sin mandar nada a WhatsApp.
    Arranca en borrador: no le escribe a nadie.

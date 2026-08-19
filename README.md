@@ -74,7 +74,11 @@ Cada paso es idempotente y se marca en el estado. **Reintentar** retoma desde el
 que falló, sin rehacer los anteriores.
 
 Si en el alta se pidió bot, se crea **después** de marcar el cliente activo: si
-falla, el Chatsuite queda bueno igual y se reintenta desde su tarjeta.
+falla, el Chatsuite queda bueno igual y se reintenta desde su tarjeta. En el alta
+se elige si **vende** (`tienda`) o **agenda** (`citas`): eso decide sus
+herramientas, las pestañas del configurador y el catálogo de etiquetas que se
+crea en Chatsuite —que es cerrado, así que «pedido» y «domicilio» no le sirven a
+una clínica—. Se puede cambiar después, en Operación.
 
 ## Después del alta
 
