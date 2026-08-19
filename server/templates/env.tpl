@@ -40,4 +40,4 @@ RACK_TIMEOUT_SERVICE_TIMEOUT=0
 # y Meta retira versiones viejas cada ~2 anios.
 WHATSAPP_API_VERSION=v22.0
 
-COMPOSE_PROJECT_NAME=chatsuite_{{SLUG}}
+COMPOSE_PROJECT_NAME=cs_{{SLUG}}

@@ -69,4 +69,4 @@ networks:
   default:
   chatsuite:
     external: true
-    name: chatsuite_{{SLUG}}_default
+    name: cs_{{SLUG}}_default

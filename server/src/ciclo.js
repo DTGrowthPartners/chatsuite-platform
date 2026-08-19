@@ -3,7 +3,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { DIR_BACKUPS, DIR_SUSPENDIDOS } from './config.js';
+import { DIR_BACKUPS, DIR_SUSPENDIDOS, PREFIJO_PROYECTO, contenedor } from './config.js';
 import { correr } from './provision.js';
 import { actualizar, listar, obtener, rutaTenant } from './store.js';
 
@@ -216,7 +216,7 @@ export async function respaldar(slug, log) {
   // local por redireccion del shell, que es el unico punto donde hace falta
   // shell — por eso va con `sh -c` y el destino entre comillas.
   await correr('sh', ['-c',
-    `docker exec chatsuite_${slug}-postgres-1 pg_dump -U postgres chatwoot | gzip > '${destino}'`,
+    `docker exec ${contenedor(slug, 'postgres')} pg_dump -U postgres chatwoot | gzip > '${destino}'`,
   ], { log });
 
   const tam = fs.statSync(destino).size;
@@ -334,13 +334,13 @@ export async function estadoSistema() {
 /** Estado real de los contenedores, para contrastarlo con el estado guardado. */
 export async function estadoContenedores() {
   const { salida } = await correr('docker', [
-    'ps', '-a', '--filter', 'name=chatsuite_', '--format', '{{.Names}}\t{{.State}}',
+    'ps', '-a', '--filter', `name=${PREFIJO_PROYECTO}`, '--format', '{{.Names}}\t{{.State}}',
   ], { permitirFallo: true });
 
   const porSlug = {};
   salida.split('\n').filter(Boolean).forEach((linea) => {
     const [nombre, estado] = linea.split('\t');
-    const m = nombre.match(/^chatsuite_(.+?)-(rails|sidekiq|postgres|redis)-\d+$/);
+    const m = nombre.match(new RegExp(`^${PREFIJO_PROYECTO}(.+?)-(rails|sidekiq|postgres|redis)-\\d+$`));
     if (!m) return;
     porSlug[m[1]] ||= {};
     porSlug[m[1]][m[2]] = estado;

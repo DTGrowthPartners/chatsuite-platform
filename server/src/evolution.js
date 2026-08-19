@@ -11,6 +11,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 
+import { contenedor } from './config.js';
 import { correr, plantilla } from './provision.js';
 import { actualizar, obtener, rutaTenant, leer as leerEstado } from './store.js';
 import * as bots from './bots.js';
@@ -23,7 +24,7 @@ export const PUERTO_EVO_MAX = 3499;
 
 export const rutaEvo = (slug) => path.join(rutaTenant(slug), 'evolution');
 const contenedorApi = (slug) => `evo_${slug}_api`;
-const contenedorRails = (slug) => `chatsuite_${slug}-rails-1`;
+const contenedorRails = (slug) => contenedor(slug, 'rails');
 
 const secreto = (n = 32) => crypto.randomBytes(n).toString('hex');
 

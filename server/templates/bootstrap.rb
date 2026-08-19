@@ -1,6 +1,6 @@
 # Arranque en limpio de un Chatsuite. Generado por el provisioner.
 #
-#   docker exec -i chatsuite_<slug>-rails-1 bundle exec rails runner /app/bootstrap.rb
+#   docker exec -i cs_<slug>-rails-1 bundle exec rails runner /app/bootstrap.rb
 #
 # Corre una sola vez despues del primer `docker compose up -d`, cuando la base
 # ya migro pero no hay cuenta ni usuarios. Reemplaza al asistente de

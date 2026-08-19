@@ -12,7 +12,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { RAIZ_APP } from './config.js';
+import { RAIZ_APP, contenedor } from './config.js';
 import { correr } from './provision.js';
 import { actualizar, obtener, rutaTenant, leer as leerEstado } from './store.js';
 
@@ -29,7 +29,7 @@ export const PUERTO_BOT_MAX = 3399;
 
 export const rutaBot = (slug) => path.join(rutaTenant(slug), 'bot');
 export const rutaData = (slug) => path.join(rutaBot(slug), 'data');
-const contenedorRails = (slug) => `chatsuite_${slug}-rails-1`;
+const contenedorRails = (slug) => contenedor(slug, 'rails');
 export const procesoPm2 = (slug) => `bot-${slug}`;
 
 // Archivos de datos que el panel puede editar, con su forma. La lista es

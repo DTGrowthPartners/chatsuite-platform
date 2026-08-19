@@ -34,6 +34,16 @@ export const PUERTO_PANEL = Number(process.env.PUERTO_PANEL || 3200);
 // Rango propio para los tenants. Empieza en 3210 para dejar aire debajo del
 // panel, y esta enteramente libre en esta maquina (verificado contra ss -ltn).
 // El techo real no es este rango sino la RAM: ~1.1 GB por tenant.
+// Prefijo de los proyectos de docker compose. NO es `chatsuite_`: con ese
+// nombre chocaba con las instancias hechas a mano ANTES de la plataforma
+// (`chatsuite_compuxtreme`, `chatsuite_tubodegactg`), que siguen esa misma
+// convencion. Un alta con uno de esos slugs recreaba SUS contenedores con la
+// config del tenant nuevo y tumbaba la instancia del cliente sin avisar; el
+// borrado, peor: `docker compose down -v` habria borrado sus volumenes.
+export const PREFIJO_PROYECTO = 'cs_';
+export const proyecto = (slug) => `${PREFIJO_PROYECTO}${slug}`;
+export const contenedor = (slug, servicio) => `${proyecto(slug)}-${servicio}-1`;
+
 export const PUERTO_TENANT_MIN = 3210;
 export const PUERTO_TENANT_MAX = 3299;
 

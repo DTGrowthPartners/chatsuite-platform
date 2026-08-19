@@ -15,7 +15,7 @@ import * as evolution from './evolution.js';
 import { EXTERNOS } from './externos.js';
 import * as jobs from './jobs.js';
 import {
-  IDS_PASOS, aprovisionar, correr, nuevoTenant, validarSlug,
+  IDS_PASOS, aprovisionar, correr, nuevoTenant, proyectoOcupado, validarSlug,
 } from './provision.js';
 import { actualizar, listar, obtener, rutaTenant } from './store.js';
 
@@ -185,6 +185,18 @@ const rutas = {
 
     const problema = validarSlug(slug);
     if (problema) return json(res, 400, { error: problema });
+
+    // El slug puede estar libre en el panel y ocupado en docker: son dos
+    // espacios de nombres distintos y el segundo manda.
+    const ocupado = await proyectoOcupado(slug);
+    if (ocupado) {
+      return json(res, 409, {
+        error: `docker ya tiene cosas de "${slug}" (${ocupado.slice(0, 4).join(', ')}`
+          + `${ocupado.length > 4 ? `, +${ocupado.length - 4}` : ''}). `
+          + 'Darlo de alta las adoptaria y las recrearia con otra config. '
+          + 'Borralas antes, o usa otro slug.',
+      });
+    }
     if (!cuerpo.nombre?.trim()) return json(res, 400, { error: 'el nombre del cliente es obligatorio' });
     if (!/^#?[0-9a-fA-F]{6}$/.test(cuerpo.color || '')) return json(res, 400, { error: 'el color debe ser #RRGGBB' });
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(cuerpo.emailAdmin || '')) return json(res, 400, { error: 'el correo del admin no es valido' });

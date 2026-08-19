@@ -12,6 +12,7 @@ import path from 'node:path';
 import {
   DIR_PLANTILLAS, DIR_TENANTS, DOMINIO_BASE, EMAIL_CERTBOT, GENERADOR_MARCA,
   IMAGEN, PUERTO_TENANT_MAX, PUERTO_TENANT_MIN, SLUGS_RESERVADOS, SMTP,
+  contenedor, proyecto,
 } from './config.js';
 import { actualizar, obtener, puertosUsados, rutaTenant } from './store.js';
 
@@ -102,6 +103,28 @@ export function validarSlug(slug) {
   if (SLUGS_RESERVADOS.has(slug)) return `"${slug}" esta reservado y no se puede usar`;
   if (obtener(slug)) return `ya existe un cliente con el slug "${slug}"`;
   return null;
+}
+
+/**
+ * Docker es el otro espacio de nombres del VPS, y hasta ahora nadie lo miraba.
+ * Si ya hay contenedores o volumenes con el proyecto del tenant, el alta NO
+ * crearia lo suyo: `docker compose up` adoptaria los que ya existen y los
+ * recrearia con la config nueva. Eso fue exactamente lo que tumbo la instancia
+ * vieja de CompuXtreme el 2026-08-19: misma cuenta, otro dueño.
+ *
+ * Se mira por nombre y no por etiqueta de compose para atrapar tambien lo que
+ * alguien haya creado a mano con ese prefijo.
+ */
+export async function proyectoOcupado(slug) {
+  const pr = proyecto(slug);
+  const { salida: conts } = await correr(
+    'docker', ['ps', '-a', '--filter', `name=^${pr}-`, '--format', '{{.Names}}'], { permitirFallo: true },
+  );
+  const { salida: vols } = await correr(
+    'docker', ['volume', 'ls', '--filter', `name=^${pr}_`, '--format', '{{.Name}}'], { permitirFallo: true },
+  );
+  const encontrados = [...conts.split('\n'), ...vols.split('\n')].map((x) => x.trim()).filter(Boolean);
+  return encontrados.length ? encontrados : null;
 }
 
 export function asignarPuerto() {
@@ -229,7 +252,7 @@ const PASOS = [
       // docker compose materializa la ancla YAML `base` como un contenedor que
       // queda Exited(0) y ensucia el listado. No estorba, pero se borra para que
       // `docker ps -a` refleje solo lo que de verdad corre.
-      await correr('docker', ['rm', '-f', `chatsuite_${tenant.slug}-base-1`], {
+      await correr('docker', ['rm', '-f', contenedor(tenant.slug, 'base')], {
         log, permitirFallo: true,
       });
     },
@@ -277,8 +300,8 @@ const PASOS = [
     id: 'bootstrap',
     titulo: 'Crear la cuenta, el admin y la marca',
     async ejecutar({ tenant, log }) {
-      const contenedor = `chatsuite_${tenant.slug}-rails-1`;
-      await correr('docker', ['cp', path.join(rutaTenant(tenant.slug), 'bootstrap.rb'), `${contenedor}:/app/bootstrap.rb`], { log });
+      const nombreRails = contenedor(tenant.slug, 'rails');
+      await correr('docker', ['cp', path.join(rutaTenant(tenant.slug), 'bootstrap.rb'), `${nombreRails}:/app/bootstrap.rb`], { log });
 
       // Las claves viajan por variables de entorno del exec y no como argumentos:
       // los argumentos quedarian visibles en el `ps` de cualquier usuario de la
@@ -295,7 +318,7 @@ const PASOS = [
         '-e', `CHATSUITE_SUPERADMIN_EMAIL=${tenant.admin.superEmail}`,
         '-e', `CHATSUITE_COLOR=${tenant.color}`,
         '-e', `CHATSUITE_DOMINIO=${tenant.dominio}`,
-        contenedor,
+        nombreRails,
         'bundle', 'exec', 'rails', 'runner', '/app/bootstrap.rb',
       ], { log });
     },

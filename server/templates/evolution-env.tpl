@@ -42,7 +42,7 @@ CHATWOOT_MESSAGE_DELETE=false
 CHATWOOT_BOT_CONTACT=false
 # Por nombre de contenedor y no por IP: la IP cambia al recrearse la red y el
 # import queda roto sin avisar.
-CHATWOOT_IMPORT_DATABASE_CONNECTION_URI=postgresql://postgres:{{CLAVE_CHATWOOT_PG}}@chatsuite_{{SLUG}}-postgres-1:5432/chatwoot?sslmode=disable
+CHATWOOT_IMPORT_DATABASE_CONNECTION_URI=postgresql://postgres:{{CLAVE_CHATWOOT_PG}}@cs_{{SLUG}}-postgres-1:5432/chatwoot?sslmode=disable
 CHATWOOT_IMPORT_PLACEHOLDER_MEDIA_MESSAGE=true
 
 RABBITMQ_ENABLED=false
