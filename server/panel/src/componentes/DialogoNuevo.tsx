@@ -20,6 +20,8 @@ type Props = {
   alCreado: (job: { id: string; slug: string; titulo: string }) => void;
 };
 
+const HORAS = Array.from({ length: 25 }, (_, i) => i);
+
 const SELECT = 'h-9 w-full cursor-pointer rounded-md border bg-transparent px-3 text-sm '
   + 'outline-none focus:border-ring';
 
@@ -49,8 +51,18 @@ export function DialogoNuevo({ abierto, dominioBase, alCerrar, alCreado }: Props
   const [conBot, setConBot] = useState(false);
   const [asistente, setAsistente] = useState('');
   // Que sabe hacer el bot. Se elige aqui y no despues porque decide las
-  // etiquetas que se crean en Chatsuite y las pestañas del configurador.
-  const [moduloBot, setModuloBot] = useState<'tienda' | 'citas'>('tienda');
+  // etiquetas que se crean en Chatsuite y las pestañas del configurador. Son
+  // casillas y no opciones excluyentes: el motor combina los modulos, y una
+  // barberia que ademas vende productos quiere los dos.
+  const [modulosBot, setModulosBot] = useState<string[]>(['tienda']);
+  // Sin esto el cliente carga sus zonas en la pestaña Domicilios y el bot no
+  // ofrece ninguna: el modulo mira este interruptor, no si hay zonas.
+  const [domicilios, setDomicilios] = useState(false);
+  // A quien avisa el bot cuando alguien pide un humano. Si esto queda vacio, la
+  // nota se escribe en Chatsuite y NADIE recibe el aviso por WhatsApp.
+  const [telefonoAvisos, setTelefonoAvisos] = useState('');
+  const [horaInicio, setHoraInicio] = useState(8);
+  const [horaFin, setHoraFin] = useState(20);
 
   // Si el usuario ya eligio color a mano, subir otro logo no se lo pisa.
   const colorManual = useRef(false);
@@ -61,6 +73,8 @@ export function DialogoNuevo({ abierto, dominioBase, alCerrar, alCreado }: Props
     setPistaColor('Se sugiere solo al subir el logo.'); setError(null);
     setAvanzado(false); setMarca(''); setSitio(''); setCiudad('');
     setIdioma('es'); setZona('America/Bogota'); setConBot(false); setAsistente('');
+    setModulosBot(['tienda']); setDomicilios(false); setTelefonoAvisos('');
+    setHoraInicio(8); setHoraFin(20);
     colorManual.current = false;
   }
 
@@ -109,13 +123,30 @@ export function DialogoNuevo({ abierto, dominioBase, alCerrar, alCreado }: Props
     ev.preventDefault();
     setError(null);
     if (!logo) return setError('falta el logo del cliente');
+    if (conBot && !modulosBot.length) return setError('el bot tiene que vender, agendar o las dos');
+    // El motor descarta los numeros que no tengan forma de telefono real (10 a
+    // 13 digitos, para poder distinguirlos de un LID), asi que un numero corto
+    // se guardaria y no avisaria a nadie, sin error en ningun lado.
+    const digitos = telefonoAvisos.replace(/[^0-9]/g, '');
+    if (conBot && telefonoAvisos.trim() && (digitos.length < 10 || digitos.length > 13)) {
+      return setError('el número de avisos va con indicativo y sin signos (ej. 573001234567)');
+    }
+    if (conBot && horaFin <= horaInicio) return setError('la hora de cierre va después de la de apertura');
     setEnviando(true);
     try {
       const r = await api.crear({
         slug, nombre, color, emailAdmin: email, quitarFondo, logo,
         marca: marca.trim(), sitio: sitio.trim(), ciudad: ciudad.trim(),
         locale: idioma, zonaHoraria: zona,
-        bot: conBot ? { crear: true, asistente: asistente.trim(), modulo: moduloBot } : null,
+        bot: conBot ? {
+          crear: true,
+          asistente: asistente.trim(),
+          modulos: modulosBot,
+          domicilios: modulosBot.includes('tienda') && domicilios,
+          telefonoAvisos: digitos,
+          nombreAvisos: nombre.trim(),
+          horario: { inicio: horaInicio, fin: horaFin },
+        } : null,
       });
       toast.success(`${nombre} en marcha`, { description: `Aprovisionando ${r.dominio}` });
       alCreado({ id: r.job, slug: r.slug, titulo: `Aprovisionando ${r.dominio}` });
@@ -347,12 +378,14 @@ export function DialogoNuevo({ abierto, dominioBase, alCerrar, alCreado }: Props
                               key={id}
                               className={cn(
                                 'flex cursor-pointer items-start gap-2.5 rounded-md border p-2.5 text-sm transition-colors',
-                                moduloBot === id ? 'border-primary/50 bg-primary/8' : 'hover:border-white/18',
+                                modulosBot.includes(id) ? 'border-primary/50 bg-primary/8' : 'hover:border-white/18',
                               )}
                             >
                               <input
-                                type="radio" name="modulo" className="mt-0.5" checked={moduloBot === id}
-                                onChange={() => setModuloBot(id)}
+                                type="checkbox" className="mt-0.5" checked={modulosBot.includes(id)}
+                                onChange={(e) => setModulosBot(e.target.checked
+                                  ? [...modulosBot, id]
+                                  : modulosBot.filter((m) => m !== id))}
                               />
                               <span>
                                 <span className="font-medium">{titulo}</span>
@@ -361,6 +394,57 @@ export function DialogoNuevo({ abierto, dominioBase, alCerrar, alCreado }: Props
                             </label>
                           ))}
                         </div>
+
+                        {modulosBot.includes('tienda') && (
+                          <label className="flex cursor-pointer items-start gap-2.5 rounded-md border p-2.5 text-sm">
+                            <input
+                              type="checkbox" className="mt-0.5" checked={domicilios}
+                              onChange={(e) => setDomicilios(e.target.checked)}
+                            />
+                            <span>
+                              <span className="font-medium">Hace domicilios</span>
+                              <span className="block text-xs text-muted-foreground">
+                                Pregunta la dirección y cobra por zona. Sin esto, las zonas
+                                que cargue el cliente no se usan.
+                              </span>
+                            </span>
+                          </label>
+                        )}
+
+                        <div className="grid gap-2">
+                          <Label htmlFor="avisos">A qué número avisa</Label>
+                          <Input
+                            id="avisos" placeholder="573001234567"
+                            value={telefonoAvisos}
+                            onChange={(e) => setTelefonoAvisos(e.target.value)}
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            Con indicativo. Es a quien le escribe cuando un cliente pide un
+                            humano. Si se deja vacío, el aviso solo queda como nota en el chat.
+                          </p>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="grid gap-2">
+                            <Label htmlFor="desde">Atiende desde</Label>
+                            <select
+                              id="desde" className={SELECT} value={horaInicio}
+                              onChange={(e) => setHoraInicio(Number(e.target.value))}
+                            >
+                              {HORAS.map((h) => <option key={h} value={h}>{`${h}:00`}</option>)}
+                            </select>
+                          </div>
+                          <div className="grid gap-2">
+                            <Label htmlFor="hasta">Hasta</Label>
+                            <select
+                              id="hasta" className={SELECT} value={horaFin}
+                              onChange={(e) => setHoraFin(Number(e.target.value))}
+                            >
+                              {HORAS.map((h) => <option key={h} value={h}>{`${h}:00`}</option>)}
+                            </select>
+                          </div>
+                        </div>
+
                         <p className="text-xs text-muted-foreground">
                           Se puede cambiar después, en Operación.
                         </p>

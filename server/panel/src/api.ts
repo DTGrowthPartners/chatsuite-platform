@@ -50,7 +50,11 @@ export type PerfilBot = {
   modelo: Record<string, string | number>;
   persona: Record<string, unknown>;
   operacion: Record<string, never> & Record<string, unknown>;
-  tienda?: Record<string, unknown>;
+  tienda?: {
+    catalogo?: { fotos_por_tanda?: number };
+    pdf?: { activo?: boolean; titulo?: string };
+    domicilios?: { activo?: boolean; etiqueta?: string; ciudad?: string };
+  };
   etiquetas: { nombre: string; titulo?: string }[];
   alertas: Record<string, unknown>;
   [k: string]: unknown;

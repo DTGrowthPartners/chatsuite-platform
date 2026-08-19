@@ -34,6 +34,9 @@ log = logging.getLogger("chatsuite-bot")
 
 FOTOS = DATA / "catalogo-fotos"
 RUTA_CATALOGO = DATA / "catalogo.json"
+
+# Techo duro de fotos por envío, pase lo que pase en el perfil.
+TOPE_FOTOS = 10
 RUTA_DOMICILIOS = DATA / "domicilios.json"
 RUTA_PEDIDOS = DATA / "pedidos.json"
 
@@ -96,6 +99,20 @@ class Modulo(Base):
     def _cfg(self, p) -> dict:
         return p.modulo("tienda")
 
+    def _fotos_por_tanda(self, p) -> int:
+        """Cuántas fotos manda de una, con techo.
+
+        El techo es código y no confianza: el valor lo escribe el cliente desde
+        su propio configurador, y una tanda de veinte fotos es exactamente lo
+        que dispara el `pair rate limit` de WhatsApp (131056) — que no falla
+        con un error claro, sino dejando de entregar imágenes.
+        """
+        try:
+            pedido = int(self._cfg(p).get("catalogo", {}).get("fotos_por_tanda", 4))
+        except (TypeError, ValueError):
+            pedido = 4
+        return max(1, min(pedido, TOPE_FOTOS))
+
     def _domicilios_activos(self, p) -> bool:
         return bool(self._cfg(p).get("domicilios", {}).get("activo")) and bool(
             _leer(RUTA_DOMICILIOS, [])
@@ -155,7 +172,7 @@ class Modulo(Base):
         }]
 
         if _leer(RUTA_CATALOGO, []):
-            tope = int(cfg.get("catalogo", {}).get("fotos_por_tanda", 4))
+            tope = self._fotos_por_tanda(p)
             tools.append({
                 "name": "enviar_fotos_catalogo",
                 "description": (
@@ -304,7 +321,7 @@ class Modulo(Base):
         # En convalecencia (48 h tras una reconexión) la tanda se corta: veinte
         # fotos seguidas a un desconocido es la ráfaga que castiga WhatsApp,
         # justo cuando el número está bajo la lupa.
-        tope_normal = int(self._cfg(p).get("catalogo", {}).get("fotos_por_tanda", 4))
+        tope_normal = self._fotos_por_tanda(p)
         tope = min(tope_normal, 8) if estado.convalecencia() else tope_normal
         recortadas = len(ids) > tope
 

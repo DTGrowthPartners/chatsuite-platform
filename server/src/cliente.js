@@ -47,13 +47,14 @@ const PERMITIDAS = new Set([
   'GET /api/whatsapp/qr',
 ]);
 
-// Del perfil, el cliente solo escribe estas dos secciones: la persona del bot y
-// el horario de citas. Los modulos, el canal, el modelo y el estado del ciclo se
-// conservan tal cual estan en disco.
+// Del perfil, el cliente solo escribe estas secciones: la persona del bot, el
+// horario de citas y los ajustes de tienda (domicilios, fotos por tanda, PDF).
+// Los modulos, el canal, el modelo y el estado del ciclo se conservan tal cual
+// estan en disco.
 //
 // Esconder la pestaña «Operacion» en la interfaz no es un control: cualquiera
 // puede mandar el JSON completo a mano. El control es este filtro.
-const SECCIONES_CLIENTE = ['persona', 'citas'];
+const SECCIONES_CLIENTE = ['persona', 'citas', 'tienda'];
 
 // --- sesion de Chatwoot ------------------------------------------------------
 

@@ -145,13 +145,7 @@ export function perfilPorDefecto(tenant) {
         domingo: null,
       },
     },
-    etiquetas: [
-      { nombre: 'pedido', titulo: '📦 Pedidos' },
-      { nombre: 'cotizacion', titulo: '💬 Cotizaciones' },
-      { nombre: 'domicilio', titulo: '🛵 Domicilios' },
-      { nombre: 'reclamo', titulo: '⚠️ Reclamos' },
-      { nombre: 'seguimiento', titulo: '🔁 Seguimiento' },
-    ],
+    etiquetas: structuredClone(ETIQUETAS_POR_MODULO.tienda),
     alertas: { usar_equipo: true, numeros_extra: [], numeros_pregunta: [], tipos_whatsapp: ['escalada'] },
   };
 }
@@ -167,6 +161,13 @@ export function perfilPorDefecto(tenant) {
 // reciba—, asi que tiene que corresponder a lo que el bot hace: «pedido» y
 // «domicilio» no le sirven a una clinica, ni «reagenda» a una tienda.
 const ETIQUETAS_POR_MODULO = {
+  tienda: [
+    { nombre: 'pedido', titulo: '📦 Pedidos' },
+    { nombre: 'cotizacion', titulo: '💬 Cotizaciones' },
+    { nombre: 'domicilio', titulo: '🛵 Domicilios' },
+    { nombre: 'reclamo', titulo: '⚠️ Reclamos' },
+    { nombre: 'seguimiento', titulo: '🔁 Seguimiento' },
+  ],
   citas: [
     { nombre: 'cita', titulo: '📅 Citas' },
     { nombre: 'reagenda', titulo: '🔄 Reagendadas' },
@@ -179,13 +180,66 @@ const ETIQUETAS_POR_MODULO = {
 export function sembrarPerfil(slug, opciones = {}) {
   const perfil = leerPerfil(slug);
   if (!perfil) return;
-  if (opciones.asistente) perfil.persona.nombre = opciones.asistente;
-  if (opciones.modulo) {
-    perfil.modulos = [...new Set([opciones.modulo])];
-    const etiquetas = ETIQUETAS_POR_MODULO[opciones.modulo];
-    if (etiquetas) perfil.etiquetas = etiquetas;
+  if (opciones.asistente) {
+    perfil.persona ??= {};
+    perfil.persona.nombre = opciones.asistente;
   }
+
+  // Los modulos se combinan: una barberia que ademas vende productos quiere los
+  // dos. Las etiquetas se acumulan sin repetir, porque cada modulo trae las
+  // suyas y varias coinciden (reclamo, seguimiento).
+  const modulos = (opciones.modulos?.length ? opciones.modulos
+    : (opciones.modulo ? [opciones.modulo] : []))
+    .filter((m) => ETIQUETAS_POR_MODULO[m]);
+  if (modulos.length) {
+    perfil.modulos = [...new Set(modulos)];
+    const vistas = new Map();
+    for (const m of perfil.modulos) {
+      for (const e of ETIQUETAS_POR_MODULO[m]) if (!vistas.has(e.nombre)) vistas.set(e.nombre, e);
+    }
+    perfil.etiquetas = [...vistas.values()];
+  }
+
+  // Sin esto el bot llena la pestaña Domicilios y no ofrece ninguno: el modulo
+  // mira `activo`, no si hay zonas cargadas.
+  //
+  // Los `??=` son porque este perfil puede venir de disco, de un alta anterior:
+  // si le falta una seccion, sembrar no puede reventar a mitad y dejar el perfil
+  // sin escribir.
+  if (opciones.domicilios !== undefined) {
+    perfil.tienda ??= {};
+    perfil.tienda.domicilios ??= {};
+    perfil.tienda.domicilios.activo = Boolean(opciones.domicilios);
+    if (opciones.ciudad) perfil.tienda.domicilios.ciudad = opciones.ciudad;
+  }
+
+  // Fuera de este rango el bot contesta el mensaje de «ya cerramos» a toda hora,
+  // asi que una hora invalida se ignora en vez de escribirse.
+  const hora = (v) => (Number.isInteger(Number(v)) && Number(v) >= 0 && Number(v) <= 24
+    ? Number(v) : null);
+  const inicio = hora(opciones.horario?.inicio);
+  const fin = hora(opciones.horario?.fin);
+  if (inicio !== null || fin !== null) {
+    perfil.operacion ??= {};
+    perfil.operacion.horario ??= {};
+    if (inicio !== null) perfil.operacion.horario.inicio = inicio;
+    if (fin !== null) perfil.operacion.horario.fin = fin;
+  }
+
   escribirPerfil(slug, perfil);
+
+  // El numero de avisos va a equipo.json, que es de donde el motor saca a quien
+  // avisar. Sin una sola entrada, `escalar_a_humano` deja la nota en Chatsuite
+  // y NO le escribe a nadie: el cliente pide un humano y nadie se entera.
+  const telefono = String(opciones.telefonoAvisos || '').replace(/[^0-9]/g, '');
+  if (telefono) {
+    const equipo = leerDato(slug, 'equipo.json') || [];
+    if (!equipo.some((x) => String(x.telefono || '').replace(/[^0-9]/g, '') === telefono)) {
+      escribirDato(slug, 'equipo.json', [...equipo, {
+        nombre: opciones.nombreAvisos || 'Dueño', telefono, rol: 'dueño',
+      }]);
+    }
+  }
 }
 
 export function leerPerfil(slug) {
@@ -563,7 +617,14 @@ export const cambiarCiclo = (slug, estado) => alBot(slug, '/bot/admin/estado', {
 
 // --- aprovisionamiento -------------------------------------------------------
 
-export async function preparar(slug, log) {
+/**
+ * @param {object} [siembra] lo elegido en el alta (modulos, domicilios, horario…).
+ *   Se aplica ANTES de arrancar el proceso y de sincronizar etiquetas: si se
+ *   sembrara despues, Chatsuite se quedaria con las etiquetas y los atributos
+ *   del perfil por defecto —los de tienda— aunque el bot fuera de citas, y esas
+ *   etiquetas de mas no las borra nadie.
+ */
+export async function preparar(slug, log, siembra = null) {
   const tenant = obtener(slug);
   if (!tenant) throw new Error('no existe ese cliente');
   // Los estados del tenant son: pendiente, aprovisionando, activo, error,
@@ -617,6 +678,12 @@ export async function preparar(slug, log) {
     if (spec.soloLectura) continue;
     const destino = path.join(dir, 'data', archivo);
     if (!fs.existsSync(destino)) escribirDato(slug, archivo, spec.tipo === 'json' ? [] : '');
+  }
+
+  if (siembra) {
+    sembrarPerfil(slug, siembra);
+    const p = leerPerfil(slug);
+    log(`Lo elegido en el alta aplicado: ${(p.modulos || []).join(' + ') || 'sin modulos'}`);
   }
 
   log('Publicando el webhook en nginx…');

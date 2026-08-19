@@ -427,8 +427,7 @@ export async function aprovisionar(slug, log) {
     log('\n▶ Bot del cliente');
     try {
       const bots = await import('./bots.js');
-      await bots.preparar(slug, log);
-      await bots.sembrarPerfil(slug, listo.botAlAlta);
+      await bots.preparar(slug, log, listo.botAlAlta);
       log('✓ Bot creado, en borrador');
     } catch (err) {
       log(`✗ El bot no se pudo crear: ${err.message}`);
@@ -452,7 +451,15 @@ export function nuevoTenant({
     zonaHoraria: zonaHoraria || 'America/Bogota',
     ciudad: ciudad || '',
     // Si se pidio bot desde el alta, se crea al terminar los 8 pasos.
-    botAlAlta: bot?.crear ? { asistente: bot.asistente || '', modulo: bot.modulo || 'tienda' } : null,
+    botAlAlta: bot?.crear ? {
+      asistente: bot.asistente || '',
+      modulos: Array.isArray(bot.modulos) && bot.modulos.length ? bot.modulos : [bot.modulo || 'tienda'],
+      domicilios: Boolean(bot.domicilios),
+      ciudad: ciudad || '',
+      telefonoAvisos: String(bot.telefonoAvisos || '').trim(),
+      nombreAvisos: String(bot.nombreAvisos || '').trim(),
+      horario: bot.horario || null,
+    } : null,
     dominio: `${slug}.${DOMINIO_BASE}`,
     puerto: asignarPuerto(),
     color,

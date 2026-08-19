@@ -18,6 +18,7 @@ import { Button } from '@/components/ui/button';
 import { Selector } from '@/componentes/bot/campos';
 import { FormOperacion, FormPersona } from '@/componentes/bot/formularios';
 import { EditorCatalogo, EditorLista, EditorNegocio } from '@/componentes/bot/listas';
+import { AjustesCatalogo, AjustesDomicilios } from '@/componentes/bot/AjustesTienda';
 import { FormAgenda } from '@/componentes/bot/Agenda';
 import { Metricas } from '@/componentes/bot/Metricas';
 import { Prompt } from '@/componentes/bot/Prompt';
@@ -205,7 +206,12 @@ export function ConfiguradorBot({
         {pestana === 'metricas' ? <Metricas slug={slug} /> : null}
         {pestana === 'persona' ? <FormPersona perfil={perfil} alCambiar={setPerfil} /> : null}
         {pestana === 'negocio' ? <EditorNegocio slug={slug} /> : null}
-        {pestana === 'catalogo' ? <EditorCatalogo slug={slug} /> : null}
+        {pestana === 'catalogo' ? (
+          <>
+            <AjustesCatalogo slug={slug} perfil={perfil} alCambiar={setPerfil} />
+            <EditorCatalogo slug={slug} />
+          </>
+        ) : null}
         {pestana === 'agenda' ? <FormAgenda perfil={perfil} alCambiar={setPerfil} /> : null}
         {pestana === 'cierres' ? (
           <EditorLista
@@ -235,16 +241,19 @@ export function ConfiguradorBot({
           />
         ) : null}
         {pestana === 'domicilios' ? (
-          <EditorLista
-            slug={slug}
-            archivo="domicilios.json"
-            titulo="Tarifas por zona"
-            vacio={{ zona: '', precio: 0 }}
-            columnas={[
-              { llave: 'zona', titulo: 'Zona o barrio' },
-              { llave: 'precio', titulo: 'Precio (0 = gratis)', tipo: 'numero' },
-            ]}
-          />
+          <>
+            <AjustesDomicilios slug={slug} perfil={perfil} alCambiar={setPerfil} />
+            <EditorLista
+              slug={slug}
+              archivo="domicilios.json"
+              titulo="Tarifas por zona"
+              vacio={{ zona: '', precio: 0 }}
+              columnas={[
+                { llave: 'zona', titulo: 'Zona o barrio' },
+                { llave: 'precio', titulo: 'Precio (0 = gratis)', tipo: 'numero' },
+              ]}
+            />
+          </>
         ) : null}
         {pestana === 'equipo' ? (
           <EditorLista
