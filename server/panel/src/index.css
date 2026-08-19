@@ -174,7 +174,9 @@
 }
 
 @layer base {
-    body {
+    /* Solo en oscuro: sobre el fondo claro del configurador estos halos se ven
+       como una mancha azul, no como profundidad. */
+    .dark body {
         /* Halos fijos: no se mueven con el scroll, asi el fondo no "respira"
            al recorrer una lista larga de clientes. */
         background-image:

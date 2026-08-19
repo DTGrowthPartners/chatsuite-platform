@@ -6,6 +6,7 @@
 // tiene usuario administrador en el Chatsuite, entra; quien no, no.
 import { StrictMode, useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
+import { Moon, Sun } from 'lucide-react';
 import { Toaster, toast } from 'sonner';
 
 import { configurarApi } from './api';
@@ -34,11 +35,32 @@ function credenciales(): Record<string, string> {
 
 configurarApi({ base: '/bot/config', cabeceras: credenciales });
 
+// Oscuro por defecto. La preferencia se guarda por navegador: esto se abre
+// dentro de Chatwoot, y quien atiende suele tener ahi su propia costumbre.
+const LLAVE_TEMA = 'configbot-tema';
+
+function aplicarTema(tema: 'oscuro' | 'claro') {
+  document.documentElement.classList.toggle('dark', tema === 'oscuro');
+}
+
+// Se aplica antes de pintar: hacerlo dentro de un efecto deja ver un parpadeo
+// claro en cada apertura.
+const temaInicial: 'oscuro' | 'claro' = localStorage.getItem(LLAVE_TEMA) === 'claro' ? 'claro' : 'oscuro';
+aplicarTema(temaInicial);
+
 type Contexto = { slug: string; nombre: string; usuario: string };
 
 function App() {
   const [contexto, setContexto] = useState<Contexto | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [tema, setTema] = useState<'oscuro' | 'claro'>(temaInicial);
+
+  function cambiarTema() {
+    const nuevo = tema === 'oscuro' ? 'claro' : 'oscuro';
+    setTema(nuevo);
+    aplicarTema(nuevo);
+    localStorage.setItem(LLAVE_TEMA, nuevo);
+  }
 
   useEffect(() => {
     fetch('/bot/config/api/contexto', { headers: credenciales() })
@@ -69,11 +91,22 @@ function App() {
     // Alto completo y una sola zona con scroll: esto vive dentro de un iframe
     // estrecho, y dos barras de scroll ahí dentro son inusables.
     <div className="flex h-dvh flex-col gap-3 p-4">
-      <header>
-        <h1 className="text-base font-semibold">Tu asistente de WhatsApp</h1>
-        <p className="text-xs text-muted-foreground">
-          Lo que cambies aquí lo aplica al instante, sin reiniciar nada.
-        </p>
+      <header className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-base font-semibold">Tu asistente de WhatsApp</h1>
+          <p className="text-xs text-muted-foreground">
+            Lo que cambies aquí lo aplica al instante, sin reiniciar nada.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={cambiarTema}
+          title={tema === 'oscuro' ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
+          aria-label={tema === 'oscuro' ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
+          className="rounded-md border p-2 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+        >
+          {tema === 'oscuro' ? <Sun className="size-4" /> : <Moon className="size-4" />}
+        </button>
       </header>
       <ConfiguradorBot
         slug={contexto.slug}

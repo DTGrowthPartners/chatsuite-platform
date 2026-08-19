@@ -22,17 +22,19 @@
   var css = ''
     // Levantado del borde: abajo a la izquierda Chatwoot pone el avatar y el
     // correo de la cuenta, y el botón los tapaba.
-    + '#cfgb-boton{position:fixed;left:14px;bottom:92px;z-index:2147483000;'
+    + '#cfgb-boton{position:fixed;left:14px;bottom:84px;z-index:2147483000;'
     + 'display:flex;align-items:center;gap:7px;padding:10px 14px;border-radius:6px;'
     + 'border:none;background:{{COLOR}};color:{{TEXTO}};cursor:pointer;'
     // Inter es la tipografia del propio Chatwoot, asi que ya esta cargada en la
     // pagina y el boton no parece pegado de otra interfaz.
-    + 'font:600 14px/1 Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;'
+    + 'font:600 15px/1 Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;'
     + 'box-shadow:0 2px 10px rgba(0,0,0,.25)}'
     + '#cfgb-boton:hover{filter:brightness(.9)}'
     + '#cfgb-capa{position:fixed;inset:0;z-index:2147483001;display:none;background:rgba(0,0,0,.45)}'
     + '#cfgb-capa.abierta{display:block}'
-    + '#cfgb-marco{position:absolute;inset:3vh 3vw;background:#fff;border-radius:10px;'
+    // Fondo oscuro: es el tema por defecto del configurador, y con blanco se
+    // veia un flash claro cada vez que se abria.
+    + '#cfgb-marco{position:absolute;inset:3vh 3vw;background:#07060f;border-radius:10px;'
     + 'overflow:hidden;display:flex;flex-direction:column;box-shadow:0 10px 40px rgba(0,0,0,.35)}'
     + '#cfgb-barra{display:flex;align-items:center;justify-content:space-between;'
     + 'padding:9px 14px;background:{{COLOR}};color:{{TEXTO}};'
