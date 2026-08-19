@@ -17,7 +17,7 @@ import { TarjetaCliente } from '@/componentes/TarjetaCliente';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 
-type Job = { id: string; slug: string; titulo: string };
+type Job = { id: string; slug: string; titulo: string; accion?: string };
 
 export function Panel({ alSalir }: { alSalir: () => void }) {
   const [sistema, setSistema] = useState<Sistema | null>(null);
@@ -55,12 +55,25 @@ export function Panel({ alSalir }: { alSalir: () => void }) {
   async function lanzar(slug: string, accion: string, confirmar?: string) {
     try {
       const r = await api.accion(slug, accion, confirmar);
-      setJob({ id: r.job, slug, titulo: `${accion} · ${slug}` });
+      setJob({ id: r.job, slug, titulo: `${accion} · ${slug}`, accion });
       setBorrando(null);
     } catch (e) {
       toast.error((e as Error).message);
     }
   }
+
+  // Al terminar un borrado la consola se cierra sola. Antes se quedaba abierta
+  // sobre el panel, asi que el cliente parecia seguir ahi hasta que alguien la
+  // cerraba a mano: la lista de abajo ya estaba al dia, pero no se veia.
+  const alTerminarJob = useCallback(() => {
+    refrescar();
+    // El respiro es para que alcance a leerse el «✓ Terminado» antes de que la
+    // consola se vaya; cerrar en el mismo fotograma parece que se corto.
+    setTimeout(() => {
+      setJob((actual) => (actual?.accion === 'borrar' ? null : actual));
+      refrescar();
+    }, 1200);
+  }, [refrescar]);
 
   return (
     <div className="min-h-dvh">
@@ -140,7 +153,7 @@ export function Panel({ alSalir }: { alSalir: () => void }) {
       <ConsolaJob
         job={job} pasos={sistema?.pasos || []}
         alCerrar={() => { setJob(null); refrescar(); }}
-        alTerminar={refrescar}
+        alTerminar={alTerminarJob}
       />
       <DialogoDetalle slug={detalle} alCerrar={() => setDetalle(null)} />
       <DialogoBot

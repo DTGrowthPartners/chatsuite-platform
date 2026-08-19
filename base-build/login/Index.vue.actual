@@ -1,0 +1,584 @@
+<script>
+// utils and composables
+import { login } from '../../api/auth';
+import { mapGetters } from 'vuex';
+import { useAlert } from 'dashboard/composables';
+import { required, email } from '@vuelidate/validators';
+import { useVuelidate } from '@vuelidate/core';
+import { SESSION_STORAGE_KEYS } from 'dashboard/constants/sessionStorage';
+import SessionStorage from 'shared/helpers/sessionStorage';
+import { useBranding } from 'shared/composables/useBranding';
+
+// components
+import SimpleDivider from '../../components/Divider/SimpleDivider.vue';
+import FormInput from '../../components/Form/Input.vue';
+import GoogleOAuthButton from '../../components/GoogleOauth/Button.vue';
+import Spinner from 'shared/components/Spinner.vue';
+import Icon from 'dashboard/components-next/icon/Icon.vue';
+import NextButton from 'dashboard/components-next/button/Button.vue';
+import MfaVerification from 'dashboard/components/auth/MfaVerification.vue';
+
+// Logo de marca empaquetado. Se usa como respaldo si el super admin todavia no
+// cargo LOGO/LOGO_DARK en InstallationConfig — el login no puede quedar sin
+// identidad por una config faltante.
+import dtgpLogo from 'dashboard/assets/images/dtgp-logo.png';
+
+const ERROR_MESSAGES = {
+  'no-account-found': 'LOGIN.OAUTH.NO_ACCOUNT_FOUND',
+  'business-account-only': 'LOGIN.OAUTH.BUSINESS_ACCOUNTS_ONLY',
+  'saml-authentication-failed': 'LOGIN.SAML.API.ERROR_MESSAGE',
+  'saml-not-enabled': 'LOGIN.SAML.API.ERROR_MESSAGE',
+};
+
+const IMPERSONATION_URL_SEARCH_KEY = 'impersonation';
+
+export default {
+  components: {
+    FormInput,
+    GoogleOAuthButton,
+    Spinner,
+    NextButton,
+    SimpleDivider,
+    MfaVerification,
+    Icon,
+  },
+  props: {
+    ssoAuthToken: { type: String, default: '' },
+    ssoAccountId: { type: String, default: '' },
+    ssoConversationId: { type: String, default: '' },
+    email: { type: String, default: '' },
+    authError: { type: String, default: '' },
+  },
+  setup() {
+    const { replaceInstallationName } = useBranding();
+    return {
+      replaceInstallationName,
+      v$: useVuelidate(),
+    };
+  },
+  data() {
+    return {
+      // We need to initialize the component with any
+      // properties that will be used in it
+      credentials: {
+        email: '',
+        password: '',
+      },
+      loginApi: {
+        message: '',
+        showLoading: false,
+        hasErrored: false,
+      },
+      error: '',
+      mfaRequired: false,
+      mfaToken: null,
+      ventajas: [
+        {
+          icon: 'i-lucide-messages-square',
+          titulo: 'Todo en una bandeja',
+          detalle: 'WhatsApp, Instagram y correo en la misma conversacion.',
+        },
+        {
+          icon: 'i-lucide-users',
+          titulo: 'El equipo, coordinado',
+          detalle: 'Asignaciones, notas privadas y etiquetas compartidas.',
+        },
+        {
+          icon: 'i-lucide-line-chart',
+          titulo: 'Medido de punta a punta',
+          detalle: 'Tiempos de respuesta y volumen por agente y por canal.',
+        },
+      ],
+    };
+  },
+  validations() {
+    return {
+      credentials: {
+        password: {
+          required,
+        },
+        email: {
+          required,
+          email,
+        },
+      },
+    };
+  },
+  computed: {
+    ...mapGetters({ globalConfig: 'globalConfig/get' }),
+    // El logo de fondo oscuro primero: el panel de marca es oscuro siempre.
+    logoMarca() {
+      return this.globalConfig.logoDark || this.globalConfig.logo || dtgpLogo;
+    },
+    nombreInstalacion() {
+      return this.globalConfig.installationName || 'Chatsuite';
+    },
+    anio() {
+      return new Date().getFullYear();
+    },
+    allowedLoginMethods() {
+      return window.chatwootConfig.allowedLoginMethods || ['email'];
+    },
+    showGoogleOAuth() {
+      return (
+        this.allowedLoginMethods.includes('google_oauth') &&
+        Boolean(window.chatwootConfig.googleOAuthClientId)
+      );
+    },
+    showSignupLink() {
+      return window.chatwootConfig.signupEnabled === 'true';
+    },
+    showSamlLogin() {
+      return this.allowedLoginMethods.includes('saml');
+    },
+  },
+  created() {
+    if (this.ssoAuthToken) {
+      this.submitLogin();
+    }
+    if (this.authError) {
+      const messageKey = ERROR_MESSAGES[this.authError] ?? 'LOGIN.API.UNAUTH';
+      // Use a method to get the translated text to avoid dynamic key warning
+      const translatedMessage = this.getTranslatedMessage(messageKey);
+      useAlert(translatedMessage);
+      // wait for idle state
+      this.requestIdleCallbackPolyfill(() => {
+        // Remove the error query param from the url
+        const { query } = this.$route;
+        this.$router.replace({ query: { ...query, error: undefined } });
+      });
+    }
+  },
+  methods: {
+    getTranslatedMessage(key) {
+      // Avoid dynamic key warning by handling each case explicitly
+      switch (key) {
+        case 'LOGIN.OAUTH.NO_ACCOUNT_FOUND':
+          return this.$t('LOGIN.OAUTH.NO_ACCOUNT_FOUND');
+        case 'LOGIN.OAUTH.BUSINESS_ACCOUNTS_ONLY':
+          return this.$t('LOGIN.OAUTH.BUSINESS_ACCOUNTS_ONLY');
+        case 'LOGIN.API.UNAUTH':
+        default:
+          return this.$t('LOGIN.API.UNAUTH');
+      }
+    },
+    // TODO: Remove this when Safari gets wider support
+    // Ref: https://caniuse.com/requestidlecallback
+    //
+    requestIdleCallbackPolyfill(callback) {
+      if (window.requestIdleCallback) {
+        window.requestIdleCallback(callback);
+      } else {
+        // Fallback for safari
+        // Using a delay of 0 allows the callback to be executed asynchronously
+        // in the next available event loop iteration, similar to requestIdleCallback
+        setTimeout(callback, 0);
+      }
+    },
+    showAlertMessage(message) {
+      // Reset loading, current selected agent
+      this.loginApi.showLoading = false;
+      this.loginApi.message = message;
+      useAlert(this.loginApi.message);
+    },
+    handleImpersonation() {
+      // Detects impersonation mode via URL and sets a session flag to prevent user settings changes during impersonation.
+      const urlParams = new URLSearchParams(window.location.search);
+      const impersonation = urlParams.get(IMPERSONATION_URL_SEARCH_KEY);
+      if (impersonation) {
+        SessionStorage.set(SESSION_STORAGE_KEYS.IMPERSONATION_USER, true);
+      }
+    },
+    submitLogin() {
+      this.loginApi.hasErrored = false;
+      this.loginApi.showLoading = true;
+
+      const credentials = {
+        email: this.email
+          ? decodeURIComponent(this.email)
+          : this.credentials.email,
+        password: this.credentials.password,
+        sso_auth_token: this.ssoAuthToken,
+        ssoAccountId: this.ssoAccountId,
+        ssoConversationId: this.ssoConversationId,
+      };
+
+      login(credentials)
+        .then(result => {
+          // Check if MFA is required
+          if (result?.mfaRequired) {
+            this.loginApi.showLoading = false;
+            this.mfaRequired = true;
+            this.mfaToken = result.mfaToken;
+            return;
+          }
+
+          this.handleImpersonation();
+          this.showAlertMessage(this.$t('LOGIN.API.SUCCESS_MESSAGE'));
+        })
+        .catch(response => {
+          // Reset URL Params if the authentication is invalid
+          if (this.email) {
+            window.location = '/app/login';
+          }
+          this.loginApi.hasErrored = true;
+          this.showAlertMessage(
+            response?.message || this.$t('LOGIN.API.UNAUTH')
+          );
+        });
+    },
+    submitFormLogin() {
+      if (this.v$.credentials.email.$invalid && !this.email) {
+        this.showAlertMessage(this.$t('LOGIN.EMAIL.ERROR'));
+        return;
+      }
+
+      this.submitLogin();
+    },
+    handleMfaVerified() {
+      // MFA verification successful, continue with login
+      this.handleImpersonation();
+      window.location = '/app';
+    },
+    handleMfaCancel() {
+      // User cancelled MFA, reset state
+      this.mfaRequired = false;
+      this.mfaToken = null;
+      this.credentials.password = '';
+    },
+  },
+};
+</script>
+
+<template>
+  <main class="dtgp-login">
+    <!-- Panel de marca. Se oculta por debajo de 1024px: en un telefono lo que
+         importa es el formulario, no el discurso. -->
+    <aside class="dtgp-login__marca">
+      <img :src="logoMarca" :alt="nombreInstalacion" class="dtgp-login__logo" />
+      <h1 class="dtgp-login__titular">
+        Cada conversacion,
+        <span class="dtgp-login__resalte">en su lugar.</span>
+      </h1>
+      <p class="dtgp-login__bajada">
+        La plataforma de atencion de DT Growth Partners. Un solo lugar para
+        hablar con tus clientes, sin perder el hilo ni el historial.
+      </p>
+      <ul class="dtgp-login__ventajas">
+        <li v-for="v in ventajas" :key="v.titulo" class="dtgp-login__ventaja">
+          <span class="dtgp-login__ventaja-icono">
+            <Icon :icon="v.icon" class="size-[18px]" />
+          </span>
+          <span>
+            <strong>{{ v.titulo }}</strong>
+            <em>{{ v.detalle }}</em>
+          </span>
+        </li>
+      </ul>
+      <p class="dtgp-login__pie">
+        &copy; {{ anio }} DT Growth Partners &middot; dtgrowthpartners.com
+      </p>
+    </aside>
+
+    <!-- Columna del formulario -->
+    <div class="dtgp-login__acceso">
+      <div class="dtgp-login__panel">
+        <!-- El logo se repite arriba del formulario solo en pantalla chica,
+             donde el panel de marca no se muestra. -->
+        <img
+          :src="logoMarca"
+          :alt="nombreInstalacion"
+          class="dtgp-login__logo-movil"
+        />
+
+        <!-- MFA Verification Section -->
+        <section v-if="mfaRequired">
+          <MfaVerification
+            :mfa-token="mfaToken"
+            @verified="handleMfaVerified"
+            @cancel="handleMfaCancel"
+          />
+        </section>
+
+        <!-- Regular Login Section -->
+        <section
+          v-else
+          class="dtgp-login__tarjeta"
+          :class="{ 'animate-wiggle': loginApi.hasErrored }"
+        >
+          <header class="dtgp-login__encabezado">
+            <h2>{{ replaceInstallationName($t('LOGIN.TITLE')) }}</h2>
+            <p>Entra con tu correo de trabajo para continuar.</p>
+          </header>
+
+          <div v-if="!email">
+            <div class="flex flex-col gap-4">
+              <GoogleOAuthButton v-if="showGoogleOAuth" />
+              <div v-if="showSamlLogin" class="text-center">
+                <router-link
+                  to="/app/login/sso"
+                  class="inline-flex justify-center w-full px-4 py-3 items-center bg-n-background dark:bg-n-solid-3 rounded-md shadow-sm ring-1 ring-inset ring-n-container dark:ring-n-container focus:outline-offset-0 hover:bg-n-alpha-2 dark:hover:bg-n-alpha-2"
+                >
+                  <Icon
+                    icon="i-lucide-lock-keyhole"
+                    class="size-5 text-n-slate-11"
+                  />
+                  <span class="ml-2 text-base font-medium text-n-slate-12">
+                    {{ $t('LOGIN.SAML.LABEL') }}
+                  </span>
+                </router-link>
+              </div>
+              <SimpleDivider
+                v-if="showGoogleOAuth || showSamlLogin"
+                :label="$t('COMMON.OR')"
+                class="uppercase"
+              />
+            </div>
+            <form class="space-y-5" @submit.prevent="submitFormLogin">
+              <FormInput
+                v-model="credentials.email"
+                name="email_address"
+                type="text"
+                data-testid="email_input"
+                :tabindex="1"
+                required
+                :label="$t('LOGIN.EMAIL.LABEL')"
+                :placeholder="$t('LOGIN.EMAIL.PLACEHOLDER')"
+                :has-error="v$.credentials.email.$error"
+                @input="v$.credentials.email.$touch"
+              />
+              <FormInput
+                v-model="credentials.password"
+                type="password"
+                name="password"
+                data-testid="password_input"
+                required
+                :tabindex="2"
+                :label="$t('LOGIN.PASSWORD.LABEL')"
+                :placeholder="$t('LOGIN.PASSWORD.PLACEHOLDER')"
+                :has-error="v$.credentials.password.$error"
+                @input="v$.credentials.password.$touch"
+              >
+                <p v-if="!globalConfig.disableUserProfileUpdate">
+                  <router-link
+                    to="auth/reset/password"
+                    class="text-sm text-link"
+                    tabindex="4"
+                  >
+                    {{ $t('LOGIN.FORGOT_PASSWORD') }}
+                  </router-link>
+                </p>
+              </FormInput>
+              <NextButton
+                lg
+                type="submit"
+                data-testid="submit_button"
+                class="w-full"
+                :tabindex="3"
+                :label="$t('LOGIN.SUBMIT')"
+                :disabled="loginApi.showLoading"
+                :is-loading="loginApi.showLoading"
+              />
+            </form>
+            <p v-if="showSignupLink" class="dtgp-login__registro">
+              {{ $t('COMMON.OR') }}
+              <router-link to="auth/signup" class="text-link text-n-brand">
+                {{ $t('LOGIN.CREATE_NEW_ACCOUNT') }}
+              </router-link>
+            </p>
+          </div>
+          <div v-else class="flex items-center justify-center">
+            <Spinner color-scheme="primary" size="" />
+          </div>
+        </section>
+
+        <p class="dtgp-login__pie dtgp-login__pie--movil">
+          &copy; {{ anio }} DT Growth Partners
+        </p>
+      </div>
+    </div>
+  </main>
+</template>
+
+<style scoped lang="scss">
+.dtgp-login {
+  display: grid;
+  grid-template-columns: 1fr;
+  min-height: 100vh;
+  width: 100%;
+}
+
+@media (width >= 1024px) {
+  .dtgp-login {
+    grid-template-columns: 1.05fr 1fr;
+  }
+}
+
+/* ---------- panel de marca ---------- */
+.dtgp-login__marca {
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  padding: 4rem 3.5rem;
+  border-right: 1px solid rgb(255 255 255 / 7%);
+}
+
+@media (width >= 1024px) {
+  .dtgp-login__marca {
+    display: flex;
+  }
+}
+
+.dtgp-login__logo {
+  width: auto;
+  max-width: 19rem;
+  height: 3.75rem;
+  object-fit: contain;
+  object-position: left center;
+}
+
+.dtgp-login__titular {
+  margin-top: 2.75rem;
+  font-size: clamp(2rem, 2.6vw, 3rem);
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+  color: #fff;
+}
+
+.dtgp-login__resalte {
+  display: block;
+  color: transparent;
+  background: linear-gradient(100deg, rgb(var(--brand-rgb)), rgb(var(--brand-accent-rgb, var(--brand-rgb))));
+  background-clip: text;
+}
+
+.dtgp-login__bajada {
+  max-width: 34rem;
+  margin-top: 1.25rem;
+  font-size: 1rem;
+  line-height: 1.65;
+  color: rgb(232 234 240 / 62%);
+}
+
+.dtgp-login__ventajas {
+  display: flex;
+  flex-direction: column;
+  gap: 1.35rem;
+  margin-top: 3rem;
+  padding: 0;
+  list-style: none;
+}
+
+.dtgp-login__ventaja {
+  display: flex;
+  gap: 0.9rem;
+  align-items: flex-start;
+}
+
+.dtgp-login__ventaja-icono {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  color: #4aa8ff;
+  background: rgb(0 127 252 / 12%);
+  border: 1px solid rgb(0 127 252 / 22%);
+  border-radius: 10px;
+}
+
+.dtgp-login__ventaja strong {
+  display: block;
+  font-size: 0.9375rem;
+  font-weight: 560;
+  color: #eef1f6;
+}
+
+.dtgp-login__ventaja em {
+  display: block;
+  margin-top: 0.15rem;
+  font-size: 0.875rem;
+  font-style: normal;
+  line-height: 1.5;
+  color: rgb(232 234 240 / 50%);
+}
+
+.dtgp-login__pie {
+  margin-top: 3.25rem;
+  font-size: 0.75rem;
+  color: rgb(232 234 240 / 35%);
+}
+
+/* ---------- columna del formulario ---------- */
+.dtgp-login__acceso {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 1.25rem;
+}
+
+.dtgp-login__panel {
+  width: 100%;
+  max-width: 27rem;
+}
+
+.dtgp-login__logo-movil {
+  width: auto;
+  height: 2.75rem;
+  margin: 0 auto 2rem;
+  object-fit: contain;
+}
+
+@media (width >= 1024px) {
+  .dtgp-login__logo-movil {
+    display: none;
+  }
+}
+
+.dtgp-login__tarjeta {
+  padding: 2.25rem;
+  background: rgb(15 14 26 / 82%);
+  border: 1px solid rgb(255 255 255 / 8%);
+  border-radius: 18px;
+  box-shadow:
+    0 1px 0 0 rgb(255 255 255 / 6%) inset,
+    0 28px 70px -24px rgb(0 0 0 / 75%);
+  backdrop-filter: blur(14px);
+}
+
+.dtgp-login__encabezado {
+  margin-bottom: 1.75rem;
+}
+
+.dtgp-login__encabezado h2 {
+  font-size: 1.5rem;
+  font-weight: 560;
+  letter-spacing: -0.02em;
+  color: #f4f6fa;
+}
+
+.dtgp-login__encabezado p {
+  margin-top: 0.4rem;
+  font-size: 0.875rem;
+  color: rgb(232 234 240 / 48%);
+}
+
+.dtgp-login__registro {
+  margin-top: 1.5rem;
+  font-size: 0.875rem;
+  text-align: center;
+  color: rgb(232 234 240 / 48%);
+}
+
+.dtgp-login__pie--movil {
+  margin-top: 2rem;
+  text-align: center;
+}
+
+@media (width >= 1024px) {
+  .dtgp-login__pie--movil {
+    display: none;
+  }
+}
+</style>
