@@ -127,8 +127,26 @@ export type Sistema = {
 /** Se dispara cuando la cookie vence, para que la app vuelva al login. */
 export class SesionExpirada extends Error {}
 
+/**
+ * El mismo cliente sirve al panel y al configurador del cliente. Cambian dos
+ * cosas y solo dos: el prefijo (el configurador se sirve bajo /bot/config/ del
+ * dominio del cliente) y de donde salen las credenciales, que ahi son las de su
+ * sesion de Chatwoot y viajan por cabecera.
+ */
+export const contexto = {
+  base: '',
+  cabeceras: (): Record<string, string> => ({}),
+};
+
+export function configurarApi(nuevo: Partial<typeof contexto>) {
+  Object.assign(contexto, nuevo);
+}
+
 async function pedir<T>(ruta: string, opciones?: RequestInit): Promise<T> {
-  const r = await fetch(ruta, opciones);
+  const extra = contexto.cabeceras();
+  const r = await fetch(contexto.base + ruta, Object.keys(extra).length
+    ? { ...opciones, headers: { ...(opciones?.headers as Record<string, string>), ...extra } }
+    : opciones);
   if (r.status === 401) throw new SesionExpirada('sesión expirada');
   const cuerpo = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error((cuerpo as { error?: string }).error || `error ${r.status}`);
@@ -155,7 +173,7 @@ export const api = {
   accion: (slug: string, accion: string, confirmar?: string) =>
     enviar<{ job: string }>('/api/accion', { slug, accion, confirmar }),
   entrar: (usuario: string, clave: string) => enviar<{ ok: true }>('/api/login', { usuario, clave }),
-  salir: () => fetch('/api/logout', { method: 'POST' }),
+  salir: () => fetch(`${contexto.base}/api/logout`, { method: 'POST' }),
 
   bot: {
     preparar: (slug: string) => enviar<{ job: string }>('/api/bot/preparar', { slug }),

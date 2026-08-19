@@ -9,6 +9,7 @@ import path from 'node:path';
 
 import { DIR_PUBLICO, DOMINIO_BASE, GENERADOR_MARCA, PUERTO_PANEL } from './config.js';
 import * as auth from './auth.js';
+import * as cliente from './cliente.js';
 import * as bots from './bots.js';
 import * as ciclo from './ciclo.js';
 import * as evolution from './evolution.js';
@@ -486,6 +487,19 @@ const rutas = {
 const servidor = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
   const clave = `${req.method} ${url.pathname}`;
+
+  // El configurador del cliente vive en otro dominio y con otra puerta: no usa
+  // la cookie del panel, sino la sesion de Chatwoot del propio cliente. Va antes
+  // de la guardia de sesion a proposito.
+  if (url.pathname === '/cliente' || url.pathname.startsWith('/cliente/')) {
+    try {
+      await cliente.atender(req, res, url, rutas);
+    } catch (err) {
+      if (!res.headersSent) json(res, 500, { error: err.message });
+      else res.end();
+    }
+    return;
+  }
 
   // Guardia de sesion. Solo quedan fuera la propia pantalla de acceso y los dos
   // estaticos que necesita para dibujarse; todo lo demas exige cookie valida.

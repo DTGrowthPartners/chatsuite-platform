@@ -12,7 +12,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { RAIZ_APP, contenedor } from './config.js';
+import { PUERTO_PANEL, RAIZ_APP, contenedor } from './config.js';
 import { correr } from './provision.js';
 import { actualizar, obtener, rutaTenant, leer as leerEstado } from './store.js';
 
@@ -288,6 +288,35 @@ export async function tokensYBot(slug, urlWebhook, log) {
 }
 
 /**
+ * Deja la pestaña «Mi asistente» dentro del panel de conversacion de Chatsuite.
+ *
+ * Es una Dashboard App nativa, no un parche de la interfaz: sobrevive a los
+ * upgrades de Chatwoot y al rebuild de la imagen. Solo se ve dentro de una
+ * conversacion —limite de la feature—, por eso ademas hay un boton flotante
+ * inyectado por nginx.
+ */
+export async function registrarDashboardApp(slug, log) {
+  const tenant = obtener(slug);
+  const url = `https://${tenant.dominio}/bot/config/`;
+  const ruby = `
+    account = Account.first
+    app = DashboardApp.find_or_initialize_by(account_id: account.id, title: 'Mi asistente')
+    app.user = account.users.first if app.user_id.nil?
+    app.content = [{ 'type' => 'frame', 'url' => ${JSON.stringify(url)} }]
+    app.save!
+    puts "JSON:" + { id: app.id }.to_json
+  `.trim();
+  const { salida } = await correr('docker', [
+    'exec', contenedorRails(slug), 'bundle', 'exec', 'rails', 'runner', ruby,
+  ], { log, permitirFallo: true });
+  const linea = salida.split('\n').reverse().find((l) => l.startsWith('JSON:'));
+  // Que falle no justifica tumbar el alta: el boton flotante sigue dando acceso
+  // y esto se reintenta solo la proxima vez que se prepare el bot.
+  if (!linea) log?.('no pude crear la pestaña del asistente en Chatsuite; queda el boton flotante');
+  return linea ? JSON.parse(linea.slice(5)) : null;
+}
+
+/**
  * Crea en Chatsuite las etiquetas del perfil y una vista guardada por cada una.
  *
  * Las dos cosas juntas a proposito: son sistemas separados (la whitelist vive
@@ -382,6 +411,38 @@ export async function publicarNginx(slug, puerto, log) {
   const conf = `# Bot de ${tenant.nombre}. Generado por el panel, no editar a mano.
 location /bot/admin/ { deny all; return 403; }
 location /bot/simular { deny all; return 403; }
+
+# El configurador del cliente: mismas pestañas que en nuestro panel, servidas
+# por el panel (:${PUERTO_PANEL}) pero en el dominio del cliente, para que el iframe sea del
+# mismo origen que Chatwoot y herede su sesion. Va ANTES de /bot/ porque nginx
+# elige el prefijo mas largo, no el orden.
+location /bot/config/ {
+    proxy_pass http://127.0.0.1:${PUERTO_PANEL}/cliente/;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    client_max_body_size 15m;
+    proxy_read_timeout 120s;
+}
+
+# El boton flotante. Las Dashboard Apps de Chatwoot solo salen dentro de una
+# conversacion, asi que el acceso general se inyecta en el HTML del dashboard.
+# Va en /app y NO en /: en el location general dejaria todos los assets de
+# Chatwoot sin gzip, porque sub_filter obliga a pedir sin comprimir.
+location /app {
+    proxy_pass http://127.0.0.1:${tenant.puerto};
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header Accept-Encoding "";
+    sub_filter '</body>' '<script src="/bot/config/inyector.js"></script></body>';
+    sub_filter_once on;
+    proxy_read_timeout 300s;
+}
 
 location /bot/ {
     proxy_pass http://127.0.0.1:${puerto};
@@ -537,6 +598,9 @@ export async function preparar(slug, log) {
     };
   });
   await arrancar(slug, log);
+
+  log('Publicando el configurador del cliente en Chatsuite…');
+  await registrarDashboardApp(slug, log);
 
   log('Creando etiquetas, vistas y atributos en Chatsuite…');
   const r = await sincronizarEtiquetas(slug, log);
