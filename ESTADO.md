@@ -43,11 +43,17 @@ servidor del propio VPS, firmados con el DKIM de dtgp.ai. Las credenciales viven
 en `instalacion/panel.env` (modo 600, fuera del repo) y las carga `config.js` al
 arrancar — no con `--env-file`, para que dé igual cómo se lance el proceso.
 
-Falta **publicar tres registros en Namecheap** para que el correo no caiga en
-spam: el TXT del DKIM (`mail._domainkey`), añadir `ip4:149.56.133.201` al SPF
-que ya existe —editándolo, dos SPF se invalidan entre sí— y un DMARC en
-`_dmarc` con `p=none`. Los MX no se tocan: son del reenvío de Namecheap y el VPS
-solo envía. Sin esos registros el correo sale igual, pero sin verificar.
+El DNS de dtgp.ai ya está publicado y verificado (2026-08-19): DKIM en
+`mail._domainkey` —`opendkim-testkey` da **key OK** y una firma real verifica
+contra el DNS público—, el SPF con `ip4:149.56.133.201` en un único registro, y
+DMARC en `_dmarc` con `p=none`. Los MX siguen en el reenvío de Namecheap: el VPS
+solo envía.
+
+⚠️ **El SPF de dtgp.ai está "Locked by Domain Redirect" en Namecheap.** Se editó
+confirmando el aviso, pero si algún día se cambia la opción de *Mail Settings*
+—hoy en Email Forwarding— Namecheap regenera ese registro y **se lleva por
+delante el `ip4:`**. Si un día el correo de los clientes empieza a caer en spam
+sin que nadie haya tocado nada, mirar eso primero.
 
 ### Antes: primer cliente real
 
