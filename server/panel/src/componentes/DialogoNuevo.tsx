@@ -28,6 +28,9 @@ export function DialogoNuevo({ abierto, dominioBase, alCerrar, alCreado }: Props
   const [slug, setSlug] = useState('');
   const [email, setEmail] = useState('');
   const [color, setColor] = useState('#007FFC');
+  // El hex se escribe aparte del selector: lo que teclea el usuario puede estar
+  // a medias ("#00") y no debe pintar la marca hasta estar completo.
+  const [hex, setHex] = useState('#007FFC');
   const [quitarFondo, setQuitarFondo] = useState(false);
   const [logo, setLogo] = useState<string | null>(null);
   const [nombreLogo, setNombreLogo] = useState('');
@@ -53,7 +56,7 @@ export function DialogoNuevo({ abierto, dominioBase, alCerrar, alCreado }: Props
   const colorManual = useRef(false);
 
   function limpiar() {
-    setNombre(''); setSlug(''); setEmail(''); setColor('#007FFC');
+    setNombre(''); setSlug(''); setEmail(''); setColor('#007FFC'); setHex('#007FFC');
     setQuitarFondo(false); setLogo(null); setNombreLogo('');
     setPistaColor('Se sugiere solo al subir el logo.'); setError(null);
     setAvanzado(false); setMarca(''); setSitio(''); setCiudad('');
@@ -72,6 +75,20 @@ export function DialogoNuevo({ abierto, dominioBase, alCerrar, alCreado }: Props
     );
   }
 
+  // El color de marca casi siempre lo manda el cliente como hex, y el selector
+  // nativo no deja pegarlo en todos los navegadores. Se acepta con # o sin el,
+  // y solo cuando estan los 6 digitos se pinta: asi se puede borrar y reescribir
+  // sin que la marca parpadee a un color a medias.
+  function escribirHex(v: string) {
+    const t = (v.startsWith('#') ? v : `#${v}`).toUpperCase().slice(0, 7);
+    setHex(t);
+    if (/^#[0-9A-F]{6}$/.test(t)) {
+      colorManual.current = true;
+      setColor(t);
+      setPistaColor(`Color escrito a mano: ${t}.`);
+    }
+  }
+
   async function elegirLogo(archivo: File | undefined) {
     if (!archivo) return;
     setNombreLogo(archivo.name);
@@ -81,7 +98,7 @@ export function DialogoNuevo({ abierto, dominioBase, alCerrar, alCreado }: Props
     setPistaColor('Analizando el logo…');
     try {
       const { color: sugerido } = await api.colorSugerido(datos);
-      setColor(sugerido);
+      setColor(sugerido); setHex(sugerido.toUpperCase());
       setPistaColor(`Sugerido del logo: ${sugerido}. Puedes cambiarlo.`);
     } catch (e) {
       setPistaColor(`No pude sugerirlo (${(e as Error).message}). Elígelo a mano.`);
@@ -168,7 +185,10 @@ export function DialogoNuevo({ abierto, dominioBase, alCerrar, alCreado }: Props
               <div className="flex items-center gap-3">
                 <Input
                   id="color" type="color" value={color}
-                  onChange={(e) => { colorManual.current = true; setColor(e.target.value); }}
+                  onChange={(e) => {
+                    colorManual.current = true;
+                    setColor(e.target.value); setHex(e.target.value.toUpperCase());
+                  }}
                   className="h-9 w-14 cursor-pointer p-1"
                 />
                 <div
@@ -176,7 +196,13 @@ export function DialogoNuevo({ abierto, dominioBase, alCerrar, alCreado }: Props
                   style={{ background: color }}
                   aria-hidden
                 />
-                <code className="shrink-0 text-xs text-muted-foreground tabular-nums">{color.toUpperCase()}</code>
+                <Input
+                  id="hex" aria-label="Color en hexadecimal" spellCheck={false}
+                  value={hex} maxLength={7} placeholder="#0080B0"
+                  onChange={(e) => escribirHex(e.target.value)}
+                  onBlur={() => setHex(color.toUpperCase())}
+                  className="h-9 w-24 shrink-0 text-center font-mono text-xs uppercase tabular-nums"
+                />
               </div>
               <p className="min-h-4 text-xs text-muted-foreground">{pistaColor}</p>
             </div>
