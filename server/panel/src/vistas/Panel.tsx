@@ -3,13 +3,14 @@ import { AnimatePresence, motion } from 'motion/react';
 import { LogOut, Plus, ServerCog } from 'lucide-react';
 import { toast } from 'sonner';
 
-import { api, SesionExpirada, type Sistema, type Tenant } from '@/api';
+import { api, SesionExpirada, type Externo, type Sistema, type Tenant } from '@/api';
 import { ConsolaJob } from '@/componentes/ConsolaJob';
 import { DialogoBorrar } from '@/componentes/DialogoBorrar';
 import { DialogoBot } from '@/componentes/DialogoBot';
 import { DialogoWhatsapp } from '@/componentes/DialogoWhatsapp';
 import { DialogoDetalle } from '@/componentes/DialogoDetalle';
 import { DialogoNuevo } from '@/componentes/DialogoNuevo';
+import { Externos } from '@/componentes/Externos';
 import { Marca } from '@/componentes/Marca';
 import { Recursos } from '@/componentes/Recursos';
 import { TarjetaCliente } from '@/componentes/TarjetaCliente';
@@ -21,6 +22,7 @@ type Job = { id: string; slug: string; titulo: string };
 export function Panel({ alSalir }: { alSalir: () => void }) {
   const [sistema, setSistema] = useState<Sistema | null>(null);
   const [tenants, setTenants] = useState<Tenant[] | null>(null);
+  const [externos, setExternos] = useState<Externo[] | null>(null);
   const [nuevo, setNuevo] = useState(false);
   const [job, setJob] = useState<Job | null>(null);
   const [detalle, setDetalle] = useState<string | null>(null);
@@ -30,9 +32,10 @@ export function Panel({ alSalir }: { alSalir: () => void }) {
 
   const refrescar = useCallback(async () => {
     try {
-      const [s, t] = await Promise.all([api.sistema(), api.tenants()]);
+      const [s, t, e] = await Promise.all([api.sistema(), api.tenants(), api.externos()]);
       setSistema(s);
       setTenants(t);
+      setExternos(e);
     } catch (e) {
       if (e instanceof SesionExpirada) return alSalir();
       toast.error((e as Error).message);
@@ -102,8 +105,7 @@ export function Panel({ alSalir }: { alSalir: () => void }) {
             <ServerCog className="mx-auto size-8 text-muted-foreground/60" />
             <p className="mt-3 font-medium">Todavía no hay clientes</p>
             <p className="mx-auto mt-1.5 max-w-md text-sm text-muted-foreground">
-              Las instancias antiguas (tubodegactg, compuxtreme…) siguen funcionando
-              aparte y no se administran desde aquí.
+              Los que ya existían siguen funcionando aparte, abajo.
             </p>
             <Button className="mt-5" onClick={() => setNuevo(true)}>
               <Plus /> Crear el primero
@@ -125,6 +127,8 @@ export function Panel({ alSalir }: { alSalir: () => void }) {
             </AnimatePresence>
           </div>
         )}
+
+        <Externos externos={externos} />
       </main>
 
       <DialogoNuevo

@@ -54,6 +54,7 @@ Una sola imagen para todos los clientes. Sin build por alta.
 | `bot-engine/` | **El motor de los bots**: un código, un perfil por cliente |
 | `server/src/bots.js` | Alta y configuración del bot del cliente |
 | `server/src/evolution.js` | Canal de WhatsApp: Evolution por cliente y QR |
+| `server/src/externos.js` | Lo que ya vive en el VPS: se lista y se reserva |
 | `instalacion/` | sudoers acotado y la clave del panel (la clave NO se versiona) |
 | `/srv/chatsuite/<slug>/` | Un directorio por cliente |
 | `/srv/chatsuite/tenants.json` | Estado (modo 600: contiene secretos) |
@@ -134,12 +135,15 @@ el CSS, en vez de publicar una imagen que ignora `brand.css`.
 
 ## Cosas que hay que saber
 
-**El wildcard DNS es obligatorio.** `*.dtgp.ai -> 149.56.133.201` en Namecheap.
-Sin él, el paso 8 muere con `NXDOMAIN` y el cliente queda sin HTTPS. Los
-registros explícitos (`dairo`, `www`) le ganan al wildcard.
+**El wildcard DNS es obligatorio** — y ya está puesto: `*.dtgp.ai ->
+149.56.133.201` en Namecheap. Sin él, el paso 8 muere con `NXDOMAIN` y el
+cliente queda sin HTTPS. Los registros explícitos (`dairo`, `tubodega`,
+`cantinabot`, `www`) le ganan al wildcard.
 
-**`dairo.dtgp.ai` está reservado.** Hace proxy a `:8011` (el bot) y lo maneja
-otro sistema. El validador de slugs lo rechaza junto a otros 33 nombres.
+**Los nombres ya tomados están reservados.** `dairo.dtgp.ai` (el bot, `:8011`),
+`tubodega.dtgp.ai` (el Chatsuite de Tu Bodega) y `cantinabot.dtgp.ai` son sitios
+de nginx que ya existen: un alta con ese slug los sobrescribiría y los tumbaría,
+sin avisar —gana el último sitio escrito—. El validador rechaza 44 nombres.
 
 **El techo es la RAM, no los puertos.** ~1.1 GB por cliente. El panel muestra el
 cupo estimado; cuando baje de 3, toca segundo nodo.
@@ -155,5 +159,7 @@ Root › Track › Indicator (apuntar con `> div` pinta la PISTA, no el relleno)
 
 **Las instancias viejas no se tocan.** `chatwoot_dairo`, `chatwoot_equilibrio`,
 `chatwoot_ceenford`, `chatsuite_tubodegactg` y `chatsuite_compuxtreme` siguen con
-sus imágenes y compose propios. El panel las lista como informativas pero no las
-administra.
+sus imágenes y compose propios. El catálogo está en `server/src/externos.js`: el
+panel las lista al pie —con su enlace y un punto de vida— pero no las
+administra, y **de esa misma lista salen los slugs reservados**, para que no
+pueda pasar que se agregue una instancia y se olvide reservar su nombre.

@@ -12,6 +12,7 @@ import * as auth from './auth.js';
 import * as bots from './bots.js';
 import * as ciclo from './ciclo.js';
 import * as evolution from './evolution.js';
+import { EXTERNOS } from './externos.js';
 import * as jobs from './jobs.js';
 import {
   IDS_PASOS, aprovisionar, correr, nuevoTenant, validarSlug,
@@ -91,6 +92,32 @@ function enSegundoPlano(slug, titulo, tarea) {
 
 // --- rutas -------------------------------------------------------------------
 
+// Vida de las instancias externas. Se pregunta al puerto local y no al dominio:
+// asi no depende del DNS ni del certificado, y un Chatwoot con FORCE_SSL que
+// responde 301 cuenta como vivo igual — lo que se quiere saber es si hay algo
+// escuchando, no si la ruta existe.
+let cacheExternos = { en: 0, datos: null };
+
+async function estadoExternos() {
+  // Un minuto de cache: el panel sondea cada 15 s y esto son 7 peticiones que
+  // no cambian de un sondeo al siguiente.
+  if (cacheExternos.datos && Date.now() - cacheExternos.en < 60_000) return cacheExternos.datos;
+
+  const datos = await Promise.all(EXTERNOS.map(async (e) => {
+    let vivo = false;
+    try {
+      const r = await fetch(`http://127.0.0.1:${e.puerto}/`, {
+        method: 'HEAD', redirect: 'manual', signal: AbortSignal.timeout(2500),
+      });
+      vivo = r.status > 0;
+    } catch { vivo = false; }
+    return { ...e, url: `https://${e.host}${e.ruta}`, vivo };
+  }));
+
+  cacheExternos = { en: Date.now(), datos };
+  return datos;
+}
+
 const rutas = {
   'POST /api/login': async (req, res) => {
     const { usuario, clave } = await leerCuerpo(req);
@@ -130,6 +157,12 @@ const rutas = {
       ...t, contenedores: contenedores[t.slug] || null,
     }));
     json(res, 200, limpios);
+  },
+
+  // Solo lectura: el panel no administra estas instancias, solo dice donde
+  // viven y como se entra.
+  'GET /api/externos': async (req, res) => {
+    json(res, 200, await estadoExternos());
   },
 
   'POST /api/color-sugerido': async (req, res) => {

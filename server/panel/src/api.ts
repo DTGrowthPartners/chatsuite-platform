@@ -19,6 +19,21 @@ export type Tenant = {
   contenedores: Record<string, string> | null;
 };
 
+// Lo que ya vive en este VPS y el panel no administra: instancias anteriores a
+// la plataforma, cada una con su compose y su dominio. Solo lectura.
+export type Externo = {
+  slug: string;
+  nombre: string;
+  cliente: string;
+  tipo: 'chatsuite' | 'bot';
+  host: string;
+  ruta: string;
+  puerto: number;
+  nota: string;
+  url: string;
+  vivo: boolean;
+};
+
 // El perfil del bot es un JSON abierto a proposito: cada modulo agrega sus
 // llaves y tiparlo entero aqui obligaria a tocar el panel cada vez que el motor
 // gana una opcion. Lo que el panel usa de forma fija si esta tipado.
@@ -126,6 +141,7 @@ const enviar = <T>(ruta: string, datos: unknown) => pedir<T>(ruta, {
 export const api = {
   sistema: () => pedir<Sistema>('/api/sistema'),
   tenants: () => pedir<Tenant[]>('/api/tenants'),
+  externos: () => pedir<Externo[]>('/api/externos'),
   tenant: (slug: string, credenciales = false) =>
     pedir<Tenant & { credenciales?: { email: string; password: string } }>(
       `/api/tenant?slug=${encodeURIComponent(slug)}${credenciales ? '&credenciales=si' : ''}`,

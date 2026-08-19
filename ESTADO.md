@@ -1,6 +1,6 @@
 # Estado del proyecto — Chatsuite Provisioner
 
-**Última actualización:** 2026-08-18
+**Última actualización:** 2026-08-19
 **Objetivo:** dar de alta Chatwoots de clientes (`cliente.dtgp.ai`) con su marca,
 desde un panel, sin instalación manual.
 
@@ -8,8 +8,9 @@ desde un panel, sin instalación manual.
 
 ## Resumen en una línea
 
-Panel funcionando en `https://dtgp.ai`. Alta de cliente probada de punta a punta.
-**Falta un solo paso, y es manual: el wildcard DNS en Namecheap.**
+Panel funcionando en `https://dtgp.ai`. Alta de cliente probada de punta a punta,
+y el wildcard DNS ya está puesto. **No queda nada bloqueando el primer cliente
+real.**
 
 ---
 
@@ -22,7 +23,8 @@ Panel funcionando en `https://dtgp.ai`. Alta de cliente probada de punta a punta
 | M2 | Motor de provisioning (8 pasos, idempotente) | ✅ Hecho y probado |
 | M3 | Panel web en `dtgp.ai` | ✅ En producción |
 | M4 | Login propio + UI con shadcn/ui | ✅ Hecho (2026-08-18) |
-| — | Wildcard `*.dtgp.ai` en Namecheap | ⬜ **Pendiente (tuyo)** |
+| — | Wildcard `*.dtgp.ai` en Namecheap | ✅ Hecho (verificado 2026-08-19) |
+| — | Lo que ya vive aquí: listado y reservado | ✅ Hecho (2026-08-19) |
 | — | sudoers acotado | ⬜ Opcional, ver abajo |
 | F2 | Conexión WhatsApp automática (whapi / Evolution) | ⬜ Fuera del alcance actual |
 
@@ -30,22 +32,12 @@ Panel funcionando en `https://dtgp.ai`. Alta de cliente probada de punta a punta
 
 ## Lo que hay que hacer ahora
 
-### 1. Wildcard DNS — bloquea el HTTPS de cada cliente
+### Primer cliente real
 
-En Namecheap, zona `dtgp.ai`:
-
-```
-Tipo: A     Host: *     Valor: 149.56.133.201
-```
-
-Sin esto, el paso 8 (SSL) muere con `NXDOMAIN` y el cliente queda sin
-certificado. Los otros 7 pasos sí completan, así que el alta no se pierde: basta
-pulsar **Reintentar** en el panel una vez el DNS propague.
-
-Los registros explícitos le ganan al wildcard, así que `dairo.dtgp.ai` y `www`
-no corren ningún riesgo. Verificado: `dairo.dtgp.ai` sigue respondiendo 200.
-
-### 2. Primer cliente real
+El wildcard `*.dtgp.ai -> 149.56.133.201` ya está en Namecheap: un nombre
+cualquiera resuelve, así que el paso 8 (SSL) ya no muere con `NXDOMAIN`. Los
+registros explícitos le ganan al wildcard, así que `dairo`, `tubodega`,
+`cantinabot` y `www` no corren ningún riesgo.
 
 Con el wildcard puesto: entrar al panel → **+ Nuevo cliente** → nombre,
 subdominio, correo del admin, logo. El color se sugiere solo desde el logo.
@@ -145,8 +137,9 @@ nada. Si quieres que `agente` tenga HTTPS propio es un `certbot` de un minuto.
 
 ## Límite de capacidad
 
-~1.1 GB de RAM por cliente. Con lo disponible hoy caben **~10 clientes más**
-antes de necesitar un segundo nodo. El panel muestra el cupo estimado en la
+~1.4 GB de RAM por cliente completo (Chatsuite 1,1 + Evolution 190 MB + bot
+80 MB). Con lo disponible hoy caben **~7 clientes más** antes de necesitar un
+segundo nodo. El panel muestra el cupo estimado en la
 cabecera; cuando baje de 3, hay que planear.
 
 El techo no son los puertos: el rango 3210–3299 da 90 espacios.
@@ -173,10 +166,26 @@ docker build -t chatsuite:base /home/ubuntu/chatsuite-platform/base-build
 
 ## Lo que NO se toca
 
-- **`dairo.dtgp.ai`** — proxy a `:8011`, es el bot y lo maneja otro sistema. El
-  validador de slugs lo rechaza junto a otros 33 nombres reservados.
-- **Las instancias viejas** — `chatwoot_dairo`, `chatwoot_equilibrio`,
-  `chatwoot_ceenford`, `chatsuite_tubodegactg` y `chatsuite_compuxtreme` siguen
-  con sus imágenes y compose propios. El panel las lista como informativas pero
-  no las administra. Migrarlas a `chatsuite:base` es posible pero es otro
-  proyecto, y no urge.
+Todo esto vive en `server/src/externos.js` y sale al pie del panel, en **También
+viven aquí**: nombre, enlace de entrada y un punto que dice si responde. Es solo
+lectura —el panel no las administra— y de esa misma lista salen los slugs
+reservados, así que agregar una instancia la reserva sola.
+
+| Qué | Dónde se entra | Puerto |
+|---|---|---|
+| Agente Dairo (bot de DTGP) | `dairo.dtgp.ai/admin/` | 8011 |
+| Cantina (bot) | `cantinabot.dtgp.ai/admin/` | 8012 |
+| Tu Bodega (Chatsuite) | `tubodega.dtgp.ai` | 3036 |
+| CompuXtreme (Chatsuite) | `compuxtreme.dtgrowthpartners.com` | 3037 |
+| Ceenford (Chatwoot) | `ceenfordsuite.dtgrowthpartners.com` | 3035 |
+| Equilibrio Clinic (Chatwoot) | `equilibriocs.dtgrowthpartners.com` | 3034 |
+| Chatsuite DTGP (Chatwoot interno) | `chatsuitetdairo.dtgrowthpartners.com` | 3033 |
+
+**Los bots se abren por `/admin`; los Chatwoots, por la raíz.**
+
+Un alta con uno de esos slugs sobrescribiría su sitio de nginx y lo tumbaría sin
+avisar —gana el último sitio escrito—, así que los 7 están reservados, más
+`acbfit`, `cantina`, `nanoplush` y `tubodegactg`, que son marcas ya en uso.
+
+Migrar las viejas a `chatsuite:base` es posible pero es otro proyecto, y no
+urge.

@@ -1,6 +1,6 @@
 # Chatsuite Platform — estado del proyecto
 
-**Actualizado:** 2026-08-18
+**Actualizado:** 2026-08-19
 **Repo:** `github.com/DTGrowthPartners/chatsuite-platform`
 **Panel:** `https://dtgp.ai`
 
@@ -28,6 +28,7 @@ imagen Docker de 4 GB por cliente y un bot armado a mano.
 | 8 | Módulo `citas` | ✅ agenda propia, servicios, cancelaciones |
 | 9 | Medición interna | ✅ eventos, contención, tokens |
 | 10 | Suspender / reanudar servicio | ✅ sin borrar nada |
+| 11 | Lo que ya vivía aquí: listado y reservado | ✅ en el panel, con su enlace |
 
 **Capacidad:** ~8 clientes completos por nodo (1,4 GB cada uno: Chatsuite 1,1 GB
 + Evolution 190 MB + bot 80 MB).
@@ -91,6 +92,9 @@ financiero vive en DTOS.
 
 **Trabajo pendiente**
 
+- Migrar las instancias viejas a `chatsuite:base`. Hoy salen en el panel bajo
+  **También viven aquí** —con su enlace y un punto de vida— pero cada una sigue
+  con su compose y su imagen propia. No urge; es otro proyecto.
 - Migrar Tu Bodega al motor. **El perfil ya está armado y probado**, corriendo en
   borrador (`bot-tubodega-ensayo`, puerto 3311). El cambio del fin de semana es
   apuntar el AgentBot y encenderlo. ⚠️ `tubodega-bot` se sigue editando: hay que
@@ -103,8 +107,6 @@ financiero vive en DTOS.
 
 **Menores**
 
-- `acbfit`, `cantina`, `equilibrio` y `tubodega` tienen registro A en dtgp.ai pero
-  **no están en la lista de slugs reservados**: un alta podría pisarlos.
 - El sudoers acotado sigue sin instalar.
 - ~10,5 GB en imágenes Docker viejas sin usar.
 - 13 registros de Tu Bodega con `precio: 0` que alguien debería revisar: ahí el 0

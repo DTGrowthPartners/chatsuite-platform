@@ -2,6 +2,8 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { SLUGS_EXTERNOS } from './externos.js';
+
 const aqui = path.dirname(fileURLToPath(import.meta.url));
 
 export const RAIZ_APP = path.resolve(aqui, '..');
@@ -34,11 +36,14 @@ export const EMAIL_CERTBOT = process.env.EMAIL_CERTBOT || 'dev@dtgrowthpartners.
 
 // Subdominios que el wizard no puede asignar.
 //
-// `dairo` es el caso que importa: dairo.dtgp.ai ya existe y hace proxy al bot
-// en :8011. Un tenant con ese slug sobrescribiria su sitio de nginx y lo
-// tumbaria. El resto son nombres de infraestructura que conviene no quemar.
+// Los primeros salen de `externos.js`: lo que ya vive en este VPS se reserva
+// solo. `dairo` es el caso que importa —dairo.dtgp.ai hace proxy al bot en
+// :8011 y un tenant con ese slug sobrescribiria su sitio de nginx y lo
+// tumbaria—, pero vale igual para tubodega.dtgp.ai o cantinabot.dtgp.ai, que
+// son clientes reales. El resto son nombres de infraestructura que conviene no
+// quemar.
 export const SLUGS_RESERVADOS = new Set([
-  'dairo',
+  ...SLUGS_EXTERNOS,
   'www', 'admin', 'api', 'app', 'panel', 'super', 'root',
   'mail', 'correo', 'smtp', 'imap', 'webmail', 'mx',
   'ns1', 'ns2', 'dns', 'cdn', 'static', 'assets',
