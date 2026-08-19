@@ -22,13 +22,14 @@
   var css = ''
     // Levantado del borde: abajo a la izquierda Chatwoot pone el avatar y el
     // correo de la cuenta, y el botón los tapaba.
-    + '#cfgb-boton{position:fixed;left:14px;bottom:84px;z-index:2147483000;'
+    + '#cfgb-boton{position:fixed;left:14px;bottom:78px;z-index:2147483000;'
     + 'display:flex;align-items:center;gap:7px;padding:10px 14px;border-radius:6px;'
     + 'border:none;background:{{COLOR}};color:{{TEXTO}};cursor:pointer;'
     // Inter es la tipografia del propio Chatwoot, asi que ya esta cargada en la
     // pagina y el boton no parece pegado de otra interfaz.
-    + 'font:600 15px/1 Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;'
+    + 'font:500 15px/1 Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;'
     + 'box-shadow:0 2px 10px rgba(0,0,0,.25)}'
+    + '#cfgb-boton svg{flex:none;width:17px;height:17px}'
     + '#cfgb-boton:hover{filter:brightness(.9)}'
     + '#cfgb-capa{position:fixed;inset:0;z-index:2147483001;display:none;background:rgba(0,0,0,.45)}'
     + '#cfgb-capa.abierta{display:block}'
@@ -50,7 +51,14 @@
 
   var boton = document.createElement('button');
   boton.id = 'cfgb-boton';
-  boton.innerHTML = '<span>🤖</span><span>Mi asistente</span>';
+  // Icono en linea y con `currentColor`: sigue al color del texto de la marca,
+  // y no depende de que la fuente del sistema tenga ese emoji —en Windows el
+  // robot se veia plano y de otro estilo que el resto de la interfaz—.
+  boton.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+    + 'stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+    + '<rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/>'
+    + '<path d="M12 7v4"/><path d="M8 16h.01"/><path d="M16 16h.01"/></svg>'
+    + '<span>Mi asistente</span>';
   boton.title = 'Configurar el asistente de WhatsApp';
 
   var capa = document.createElement('div');
