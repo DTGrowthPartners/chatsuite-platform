@@ -69,52 +69,52 @@ export function TarjetaCliente({
               <span className="sr-only">Acciones de {t.nombre}</span>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48">
-              <DropdownMenuItem onSelect={() => alDetalle(t.slug)}>
+              <DropdownMenuItem onClick={() => alDetalle(t.slug)}>
                 <Info /> Detalle y credenciales
               </DropdownMenuItem>
               {/* Solo con el Chatsuite listo: el bot necesita su API para
                   crear el AgentBot y sacar los tokens. */}
               {t.estado === 'activo' && (
-                <DropdownMenuItem onSelect={() => alBot(t)}>
+                <DropdownMenuItem onClick={() => alBot(t)}>
                   <Bot /> Bot: configurar y probar
                 </DropdownMenuItem>
               )}
               {t.estado === 'activo' && (
-                <DropdownMenuItem onSelect={() => alWhatsapp(t)}>
+                <DropdownMenuItem onClick={() => alWhatsapp(t)}>
                   <QrCode /> WhatsApp: conectar el número
                 </DropdownMenuItem>
               )}
               {t.estado === 'error' && (
-                <DropdownMenuItem onSelect={() => alAccion(t.slug, 'reintentar')}>
+                <DropdownMenuItem onClick={() => alAccion(t.slug, 'reintentar')}>
                   <RotateCw /> Reintentar el alta
                 </DropdownMenuItem>
               )}
               {t.estado === 'detenido' ? (
-                <DropdownMenuItem onSelect={() => alAccion(t.slug, 'arrancar')}>
+                <DropdownMenuItem onClick={() => alAccion(t.slug, 'arrancar')}>
                   <Play /> Arrancar
                 </DropdownMenuItem>
               ) : (
-                <DropdownMenuItem onSelect={() => alAccion(t.slug, 'detener')}>
+                <DropdownMenuItem onClick={() => alAccion(t.slug, 'detener')}>
                   <Square /> Detener
                 </DropdownMenuItem>
               )}
-              <DropdownMenuItem onSelect={() => alAccion(t.slug, 'respaldar')}>
+              <DropdownMenuItem onClick={() => alAccion(t.slug, 'respaldar')}>
                 <Archive /> Respaldar ahora
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               {/* Corta el servicio sin borrar nada: apaga el bot, el WhatsApp y
                   el Chatsuite, y publica una página que lo explica. */}
               {t.estado === 'suspendido' ? (
-                <DropdownMenuItem onSelect={() => alAccion(t.slug, 'reanudar')}>
+                <DropdownMenuItem onClick={() => alAccion(t.slug, 'reanudar')}>
                   <PlayCircle /> Reanudar el servicio
                 </DropdownMenuItem>
               ) : (
-                <DropdownMenuItem onSelect={() => alAccion(t.slug, 'suspender')}>
+                <DropdownMenuItem onClick={() => alAccion(t.slug, 'suspender')}>
                   <PauseCircle /> Suspender el servicio
                 </DropdownMenuItem>
               )}
               <DropdownMenuSeparator />
-              <DropdownMenuItem variant="destructive" onSelect={() => alBorrar(t)}>
+              <DropdownMenuItem variant="destructive" onClick={() => alBorrar(t)}>
                 <Trash2 /> Borrar
               </DropdownMenuItem>
             </DropdownMenuContent>
