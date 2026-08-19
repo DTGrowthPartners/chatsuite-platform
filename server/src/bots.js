@@ -9,6 +9,7 @@
 // Todo lo configurable vive en /srv/chatsuite/<slug>/bot/perfil.json, que el
 // motor relee al cambiar el mtime: guardar desde el panel aplica al instante,
 // sin reiniciar nada.
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -53,10 +54,35 @@ export function puertosBotUsados() {
   return new Set(leerEstado().tenants.map((t) => t.bot?.puerto).filter(Boolean));
 }
 
+/**
+ * Puertos que ya tiene alguien escuchando en la maquina.
+ *
+ * tenants.json NO es la lista completa de lo que corre aqui: los bots de
+ * ensayo y todo lo que se levanto a mano viven en pm2 y no aparecen ahi. Dar
+ * un puerto ocupado no falla de forma visible —el proceso nuevo entra en bucle
+ * de reinicio, pm2 lo da por levantado y el alta sigue— y ademas el panel se
+ * queda hablando con el bot DE OTRO CLIENTE, que responde con normalidad.
+ * Paso: el bot de un tenant nuevo se llevo el 3311, que era del ensayo de Tu
+ * Bodega.
+ */
+export function puertosEnEscucha() {
+  try {
+    const salida = execFileSync('ss', ['-ltnH'], { encoding: 'utf8' });
+    return new Set(salida.split('\n')
+      .map((l) => /:(\d+)\s*$/.exec(l.trim().split(/\s+/)[3] || ''))
+      .filter(Boolean)
+      .map((m) => Number(m[1])));
+  } catch {
+    // Sin `ss` se pierde la red de seguridad, pero no se bloquea un alta.
+    return new Set();
+  }
+}
+
 export function asignarPuertoBot() {
   const usados = puertosBotUsados();
+  const escuchando = puertosEnEscucha();
   for (let p = PUERTO_BOT_MIN; p <= PUERTO_BOT_MAX; p += 1) {
-    if (!usados.has(p)) return p;
+    if (!usados.has(p) && !escuchando.has(p)) return p;
   }
   throw new Error('no quedan puertos libres para bots');
 }
@@ -177,6 +203,31 @@ const ETIQUETAS_POR_MODULO = {
   ],
 };
 
+/**
+ * Deja los bloques de la agenda dentro de [inicio, fin]. Un bloque que quede
+ * sin minutos se cae: es preferible un dia sin agenda —visible al configurar—
+ * a un turno de cero minutos que el motor ofreceria igual.
+ */
+function recortarAgenda(horario, inicio, fin) {
+  const aMin = (t) => {
+    const [h, m] = String(t).split(':').map(Number);
+    return (h * 60) + (m || 0);
+  };
+  const aTexto = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+  const desde = inicio === null ? 0 : inicio * 60;
+  const hasta = fin === null ? 24 * 60 : fin * 60;
+
+  for (const dia of Object.keys(horario)) {
+    const bloques = horario[dia];
+    if (!Array.isArray(bloques)) continue;
+    const recortados = bloques
+      .map((b) => ({ d: Math.max(aMin(b.desde), desde), h: Math.min(aMin(b.hasta), hasta) }))
+      .filter((b) => b.h > b.d)
+      .map((b) => ({ desde: aTexto(b.d), hasta: aTexto(b.h) }));
+    horario[dia] = recortados.length ? recortados : null;
+  }
+}
+
 export function sembrarPerfil(slug, opciones = {}) {
   const perfil = leerPerfil(slug);
   if (!perfil) return;
@@ -224,6 +275,11 @@ export function sembrarPerfil(slug, opciones = {}) {
     perfil.operacion.horario ??= {};
     if (inicio !== null) perfil.operacion.horario.inicio = inicio;
     if (fin !== null) perfil.operacion.horario.fin = fin;
+    // La agenda es OTRO horario —nace 8-12 y 14-18— y el del alta no la tocaba:
+    // se elegia atender de 9 a 19 y el bot seguia ofreciendo las 8:00. Se
+    // recorta, nunca se estira: los bloques y el corte de almuerzo son del
+    // cliente, aqui solo se le quita lo que cae fuera de lo que dijo.
+    if (perfil.citas?.horario) recortarAgenda(perfil.citas.horario, inicio, fin);
   }
 
   escribirPerfil(slug, perfil);
@@ -576,6 +632,41 @@ export async function arrancar(slug, log) {
     ], { log, env: entorno });
   }
   await correr('pm2', ['save'], { permitirFallo: true, log });
+  await confirmarVivo(slug, bot.puerto, log);
+}
+
+/**
+ * Que el proceso este arriba de verdad, y que sea el de ESTE cliente.
+ *
+ * pm2 da por levantado un proceso que entra en bucle de reinicio, asi que sin
+ * esto el alta terminaba con «Bot listo» sobre un bot que no arrancaba nunca.
+ * Y se compara el slug porque el fallo tipico —el puerto ya ocupado por otro
+ * bot— deja al panel hablando con el bot de otro cliente, que contesta 200 a
+ * todo: el simulador, las metricas y el prompt serian los del otro.
+ */
+async function confirmarVivo(slug, puerto, log) {
+  const limite = Date.now() + 30000;
+  let ultimo = 'no respondio';
+  while (Date.now() < limite) {
+    await new Promise((r) => setTimeout(r, 2000));
+    let datos;
+    try {
+      const r = await fetch(`http://127.0.0.1:${puerto}/bot/admin/estado`, {
+        signal: AbortSignal.timeout(4000),
+      });
+      datos = await r.json();
+    } catch (err) {
+      ultimo = err.message;
+      continue;
+    }
+    if (datos?.slug === slug) {
+      log?.(`El bot responde en :${puerto} (${(datos.modulos || []).join(' + ') || 'sin modulos'})`);
+      return;
+    }
+    throw new Error(`el puerto ${puerto} ya era de otro bot ("${datos?.slug}"): `
+      + 'el proceso nuevo no puede arrancar y el panel estaria hablando con el bot equivocado');
+  }
+  throw new Error(`el bot no respondio en :${puerto} (${ultimo}); mira \`pm2 logs ${procesoPm2(slug)}\``);
 }
 
 export async function detener(slug, log) {

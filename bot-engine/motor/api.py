@@ -300,6 +300,11 @@ async def simular(request: Request):
     """
     datos = await request.json()
     mensajes = datos.get("mensajes") or []
+    # La forma se valida antes de tocar nada: una lista de textos sueltos —el
+    # error natural de quien llama a mano— reventaba con un 500 y un traceback,
+    # que no dice qué se mandó mal.
+    if not isinstance(mensajes, list) or not all(isinstance(m, dict) for m in mensajes):
+        return {"ok": False, "error": 'cada mensaje va como {"role": "user", "content": "..."}'}
     if not mensajes or mensajes[-1].get("role") != "user":
         return {"ok": False, "error": "el último mensaje debe ser del cliente (role: user)"}
 
