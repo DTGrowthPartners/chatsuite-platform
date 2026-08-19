@@ -12,7 +12,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { AlertTriangle, Save, Tags } from 'lucide-react';
 import { toast } from 'sonner';
 
-import { api, type EstadoBot, type EstadoWhatsapp, type PerfilBot } from '@/api';
+import { api, confirmarAplicado, type EstadoBot, type EstadoWhatsapp, type PerfilBot } from '@/api';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Selector } from '@/componentes/bot/campos';
@@ -85,7 +85,7 @@ export function ConfiguradorBot({
     setGuardando(true);
     try {
       await api.bot.guardarPerfil(slug, perfil);
-      toast.success('perfil guardado', { description: 'el bot lo aplicó sin reiniciar' });
+      toast.success('cambios guardados', { description: await confirmarAplicado(slug) });
     } catch (e) {
       toast.error((e as Error).message);
     } finally {

@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { Save, Trash2, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 
-import { api, leerArchivo, type ArchivoDato } from '@/api';
+import { api, confirmarAplicado, leerArchivo, type ArchivoDato } from '@/api';
 import { Button } from '@/components/ui/button';
 import { Area, Numero, Texto } from './campos';
 
@@ -22,7 +22,8 @@ type Fila = Record<string, unknown>;
 async function guardar(slug: string, archivo: ArchivoDato, contenido: unknown) {
   try {
     await api.bot.guardarDato(slug, archivo, contenido);
-    toast.success('guardado', { description: 'el bot ya lo está usando' });
+    // La confirmacion se le pregunta al bot, no se afirma de memoria.
+    toast.success('guardado', { description: await confirmarAplicado(slug) });
   } catch (e) {
     toast.error((e as Error).message);
   }

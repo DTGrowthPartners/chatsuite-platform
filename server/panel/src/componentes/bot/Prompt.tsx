@@ -17,7 +17,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Check, Copy, Save, Wand2 } from 'lucide-react';
 import { toast } from 'sonner';
 
-import { api, type PerfilBot } from '@/api';
+import { api, confirmarAplicado, type PerfilBot } from '@/api';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Area } from '@/componentes/bot/campos';
@@ -64,7 +64,7 @@ export function Prompt({
     setGuardando(true);
     try {
       await api.bot.guardarDato(slug, 'system.md', propio ?? '');
-      toast.success('instrucciones guardadas', { description: 'el bot las aplicó sin reiniciar' });
+      toast.success('instrucciones guardadas', { description: await confirmarAplicado(slug) });
       await cargar();
     } catch (e) {
       toast.error((e as Error).message);
@@ -75,14 +75,24 @@ export function Prompt({
 
   /** Enciende o apaga el modo experto. Guarda el perfil de una vez: es un
    *  interruptor, y dejarlo pendiente de otro botón «Guardar» que está en otra
-   *  pestaña es la forma más segura de que nadie entienda por qué no pasó nada. */
+   *  pestaña es la forma más segura de que nadie entienda por qué no pasó nada.
+   *
+   *  Al encenderlo por primera vez se siembra el texto con la persona que el bot
+   *  ya venía usando, y se guarda. Abrir el editor en blanco daba a entender que
+   *  encender esto borraba lo que había: no lo borra, pero la pantalla lo
+   *  parecía, y eso basta para que nadie se atreva a tocarlo. */
   async function cambiarModo(activo: boolean) {
     const nuevo = { ...perfil, persona: { ...perfil.persona, modo_experto: activo } };
     alCambiar(nuevo);
     try {
       await api.bot.guardarPerfil(slug, nuevo);
+      const sembrar = activo && !(propio ?? '').trim() && Boolean(datos?.persona_generada);
+      if (sembrar) {
+        await api.bot.guardarDato(slug, 'system.md', datos!.persona_generada);
+        setPropio(datos!.persona_generada);
+      }
       toast.success(activo
-        ? 'ahora manda el texto que escribas aquí'
+        ? (sembrar ? 'listo: aquí está la base que el bot ya usaba' : 'ahora manda el texto que escribas aquí')
         : 'vuelve a mandar lo que dicen los formularios');
       await cargar();
     } catch (e) {
@@ -118,11 +128,19 @@ export function Prompt({
               Tus instrucciones · {propio.trim() ? `${propio.trim().split(/\s+/).length} palabras` : 'vacío'}
             </span>
             <div className="flex gap-2">
-              {!propio.trim() ? (
-                <Button variant="outline" size="sm" onClick={() => setPropio(datos.persona_generada)}>
-                  <Wand2 className="size-3.5" /> Partir de lo que hay ahora
-                </Button>
-              ) : null}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  // Con texto escrito esto lo pisa entero: se pregunta antes, y
+                  // solo se toca el editor —hasta Guardar no se pierde nada.
+                  const hayTexto = propio.trim().length > 0;
+                  if (hayTexto && !window.confirm('Esto reemplaza lo que escribiste por la base generada. ¿Sigo?')) return;
+                  setPropio(datos.persona_generada);
+                }}
+              >
+                <Wand2 className="size-3.5" /> Restaurar la base
+              </Button>
               <Button size="sm" onClick={() => void guardar()} disabled={guardando}>
                 <Save className="size-3.5" /> {guardando ? 'Guardando…' : 'Guardar'}
               </Button>

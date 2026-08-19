@@ -49,7 +49,7 @@
   },
   "operacion": {
     "horario": { "inicio": 7, "fin": 20, "mensaje_fuera": "ya cerramos por hoy, mañana temprano te respondo" },
-    "ritmo": { "respuesta_min_seg": 15, "respuesta_max_seg": 40, "max_salientes_hora": 80 },
+    "ritmo": { "respuesta_min_seg": 15, "respuesta_max_seg": 60, "max_salientes_hora": 80 },
     "pausa_humano_seg": 3600,
     "mensaje_handoff": "te comunico con alguien del equipo, un momento",
     "reenganche": { "activo": true, "ventana_dias": 7 }

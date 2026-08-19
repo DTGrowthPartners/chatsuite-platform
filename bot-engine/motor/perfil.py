@@ -12,6 +12,7 @@ que así sea.
 import json
 import logging
 import threading
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -31,6 +32,9 @@ PRODUCCION = "produccion"  # responde a clientes reales
 _lock = threading.Lock()
 _cache: dict | None = None
 _mtime: float = 0.0
+# Cuando este proceso leyo por ultima vez el archivo. Lo usa el panel para
+# confirmar que un cambio guardado ya esta en uso.
+_leido_en: str = ""
 
 
 class Perfil:
@@ -121,7 +125,7 @@ def actual() -> Perfil:
     Se llama en cada mensaje. La comparación es por mtime, así que el costo
     normal es un `stat()`.
     """
-    global _cache, _mtime
+    global _cache, _mtime, _leido_en
     try:
         m = RUTA.stat().st_mtime
     except FileNotFoundError:
@@ -141,6 +145,7 @@ def actual() -> Perfil:
             log.exception("perfil.json ilegible; sigo con el anterior")
             return Perfil(_cache) if _cache else _VACIO
         _cache, _mtime = datos, m
+        _leido_en = datetime.now(timezone.utc).isoformat(timespec="seconds")
         log.info(
             "perfil recargado: %s · estado=%s · canal=%s · modulos=%s",
             datos.get("slug"), datos.get("estado"), (datos.get("canal") or {}).get("tipo"),
@@ -156,3 +161,14 @@ def escribir(datos: dict) -> None:
     tmp = RUTA.with_suffix(".json.tmp")
     tmp.write_text(json.dumps(datos, ensure_ascii=False, indent=2), encoding="utf-8")
     tmp.replace(RUTA)
+
+
+def leido_en() -> str:
+    """Cuándo leyó este proceso el perfil que está usando (UTC, ISO).
+
+    El panel lo pide justo después de guardar: como `actual()` relee por mtime,
+    preguntarlo ya fuerza la relectura, así que el sello que vuelve es prueba de
+    que el cambio entró — no una promesa de que entrará.
+    """
+    actual()
+    return _leido_en

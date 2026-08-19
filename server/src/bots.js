@@ -113,7 +113,7 @@ export function perfilPorDefecto(tenant) {
     },
     operacion: {
       horario: { inicio: 8, fin: 20, mensaje_fuera: 'ya por hoy cerramos, mañana te respondo temprano' },
-      ritmo: { respuesta_min_seg: 15, respuesta_max_seg: 40, max_salientes_hora: 80 },
+      ritmo: { respuesta_min_seg: 15, respuesta_max_seg: 60, max_salientes_hora: 80 },
       pausa_humano_seg: 3600,
       mensaje_handoff: 'ya te comunico con mi compañero, un momento',
       reenganche: { activo: true, ventana_dias: 7 },

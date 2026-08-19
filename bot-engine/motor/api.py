@@ -380,6 +380,12 @@ async def admin_estado():
         "convalecencia": estado.convalecencia(),
         "canal": canal.diagnostico(),
         "salientes_ultima_hora": humanizador.salientes_hora(),
+        # Cuando el proceso leyo el perfil que esta usando AHORA. Pedir este
+        # estado ya fuerza la relectura por mtime, asi que el panel puede
+        # preguntar despues de guardar y confirmar que el cambio entro, en vez
+        # de prometerlo. Sin esto, guardar y no ver nada se siente igual que
+        # guardar y que falle.
+        "perfil_leido_en": perfil_mod.leido_en(),
         "alertas_recientes": alertas.ultimas()[-5:],
     }
 

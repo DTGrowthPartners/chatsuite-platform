@@ -64,6 +64,7 @@ export type EstadoBot = {
   modulos?: string[];
   pausas?: Record<string, number>;
   convalecencia?: boolean;
+  perfil_leido_en?: string;
   canal?: { canal: string; estado_sesion: string | null; congelado: boolean; acuses_vistos: number; envios_ultima_hora: number };
   salientes_ultima_hora?: number;
 };
@@ -123,6 +124,27 @@ export type Sistema = {
   dominioBase: string;
   pasos: Paso[];
 };
+
+/**
+ * Le pregunta al bot si ya está usando lo que se acaba de guardar.
+ *
+ * No es adorno: el motor relee por mtime y preguntarle el estado FUERZA esa
+ * relectura, así que la hora que vuelve es prueba de que el cambio entró.
+ * Guardar y no ver nada se siente igual que guardar y que falle — de ahí que
+ * cada guardado termine diciendo a qué hora lo aplicó el bot.
+ */
+export async function confirmarAplicado(slug: string): Promise<string> {
+  try {
+    const estado = await api.bot.estado(slug);
+    if (estado.caido) return 'el bot no responde ahora mismo: se aplicará al levantarse';
+    const sello = estado.perfil_leido_en
+      ? new Date(estado.perfil_leido_en).toLocaleTimeString('es-CO')
+      : new Date().toLocaleTimeString('es-CO');
+    return `el bot lo está usando desde las ${sello}`;
+  } catch {
+    return 'guardado en disco; el bot lo tomará en el próximo mensaje';
+  }
+}
 
 /** Se dispara cuando la cookie vence, para que la app vuelva al login. */
 export class SesionExpirada extends Error {}
