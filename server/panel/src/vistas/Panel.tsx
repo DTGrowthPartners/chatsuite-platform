@@ -11,7 +11,8 @@ import { DialogoWhatsapp } from '@/componentes/DialogoWhatsapp';
 import { DialogoDetalle } from '@/componentes/DialogoDetalle';
 import { DialogoNuevo } from '@/componentes/DialogoNuevo';
 import { Externos } from '@/componentes/Externos';
-import { Marca } from '@/componentes/Marca';
+import { Formularios, VistaFormulario } from '@/componentes/Formularios';
+import { LockupDTGP } from '@/componentes/Marca';
 import { Recursos } from '@/componentes/Recursos';
 import { TarjetaCliente } from '@/componentes/TarjetaCliente';
 import { Button } from '@/components/ui/button';
@@ -29,6 +30,10 @@ export function Panel({ alSalir }: { alSalir: () => void }) {
   const [borrando, setBorrando] = useState<Tenant | null>(null);
   const [bot, setBot] = useState<Tenant | null>(null);
   const [wa, setWa] = useState<Tenant | null>(null);
+  // El detalle de un formulario ocupa la pantalla entera en vez de un modal: son
+  // 53 preguntas con sus adjuntos, y mirarlas por la rendija de un dialogo era
+  // justo lo que sobraba.
+  const [formulario, setFormulario] = useState<string | null>(null);
 
   const refrescar = useCallback(async () => {
     try {
@@ -79,8 +84,13 @@ export function Panel({ alSalir }: { alSalir: () => void }) {
     <div className="min-h-dvh">
       <header className="sticky top-0 z-20 border-b bg-background/72 backdrop-blur-md">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-6 py-3.5">
+          {/* Lockup de DTGP y, separados por una linea, el nombre del producto.
+              Es la misma marca que ve el cliente en la pantalla de acceso: la
+              cabecera no puede decir otra cosa que la puerta por la que se
+              entro. */}
           <div className="flex items-center gap-3">
-            <Marca className="size-8" />
+            <LockupDTGP className="h-6 shrink-0" />
+            <span className="h-7 w-px shrink-0 bg-border" aria-hidden />
             <div className="leading-tight">
               <div className="text-[0.95rem] font-semibold">Chatsuite</div>
               <div className="text-xs text-muted-foreground">Panel de aprovisionamiento</div>
@@ -98,6 +108,16 @@ export function Panel({ alSalir }: { alSalir: () => void }) {
         </div>
       </header>
 
+      {formulario ? (
+        <main className="mx-auto max-w-7xl px-6 pb-20 pt-5">
+          <VistaFormulario
+            id={formulario}
+            // Al volver se desmonta, asi que la lista se vuelve a pedir sola y
+            // el avance aparece al dia sin recargar la pagina.
+            alVolver={() => { setFormulario(null); refrescar(); }}
+          />
+        </main>
+      ) : (
       <main className="mx-auto max-w-7xl px-6 pb-20 pt-5">
         <Recursos sistema={sistema} />
 
@@ -141,8 +161,11 @@ export function Panel({ alSalir }: { alSalir: () => void }) {
           </div>
         )}
 
+        <Formularios alAbrir={setFormulario} />
+
         <Externos externos={externos} />
       </main>
+      )}
 
       <DialogoNuevo
         abierto={nuevo}

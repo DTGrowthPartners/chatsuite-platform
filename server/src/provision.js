@@ -479,6 +479,11 @@ export function nuevoTenant({
       telefonoAvisos: String(bot.telefonoAvisos || '').trim(),
       nombreAvisos: String(bot.nombreAvisos || '').trim(),
       horario: bot.horario || null,
+      // El formulario de onboarding del que salio este alta. Se resuelve al
+      // preparar el bot y no aqui: en ese momento ya hay un perfil sobre el que
+      // volcarlo, y si el alta falla a mitad no queda un formulario marcado como
+      // usado por una instancia que no existe.
+      formularioId: String(bot.formularioId || '').trim() || null,
     } : null,
     // El historial SOLO se importa al escanear: si no se pide aqui, recuperarlo
     // despues obliga a desconectar el numero y volver a escanear.

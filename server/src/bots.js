@@ -16,6 +16,7 @@ import path from 'node:path';
 import { PUERTO_PANEL, RAIZ_APP, contenedor } from './config.js';
 import { correr } from './provision.js';
 import { actualizar, obtener, rutaTenant, leer as leerEstado } from './store.js';
+import * as formularios from './formularios.js';
 
 // El motor vive en este mismo repo: panel y motor cambian juntos (el panel
 // escribe el perfil.json que el motor lee y llama a su API para el simulador),
@@ -228,6 +229,50 @@ function recortarAgenda(horario, inicio, fin) {
   }
 }
 
+/**
+ * Vuelca sobre el bot el formulario de onboarding que respondio el cliente.
+ *
+ * Dos destinos, a proposito. Lo que tiene un hueco exacto en el perfil —el
+ * nombre, el horario, el tuteo, cuando escalar— entra ahi, porque de ahi salen
+ * decisiones del motor. Todo lo demas va integro a `negocio.md`, que el prompt
+ * lee como fuente de verdad del negocio: es la diferencia entre un bot generico
+ * y uno que sabe a que se dedica la empresa.
+ *
+ * Se hace despues de sembrarPerfil para que el formulario mande sobre lo que se
+ * eligio a mano en el modal: el cliente conoce su negocio mejor que nosotros.
+ */
+async function volcarFormulario(slug, formularioId, log) {
+  const form = formularios.leer(formularioId);
+  if (!form) {
+    log(`AVISO: el formulario ${formularioId} ya no existe; el bot queda con lo del alta`);
+    return;
+  }
+
+  const perfil = leerPerfil(slug);
+  if (perfil) {
+    escribirPerfil(slug, formularios.aplicarAPerfil(form, perfil));
+    log(`Formulario de "${form.negocio}" aplicado al perfil`);
+  }
+
+  // No se pisa un negocio.md que ya tenga contenido: reintentar un alta no puede
+  // borrar lo que alguien escribio a mano entre un intento y otro.
+  const actual = String(leerDato(slug, 'negocio.md') || '').trim();
+  if (actual) {
+    log('negocio.md ya tenia contenido; el briefing NO se escribio encima');
+  } else {
+    escribirDato(slug, 'negocio.md', formularios.briefing(form));
+    const a = formularios.avance(form.tipoBot, form.respuestas, form.adjuntos);
+    log(`Briefing en negocio.md: ${a.hechas} respuestas, ${a.criticasHechas}/${a.criticas} criticas`);
+  }
+
+  const adjuntos = Object.values(form.adjuntos || {}).flat();
+  if (adjuntos.length) {
+    log(`El formulario trae ${adjuntos.length} adjunto(s); se descargan desde el panel`);
+  }
+
+  await formularios.marcarUsado(formularioId, slug);
+}
+
 export function sembrarPerfil(slug, opciones = {}) {
   const perfil = leerPerfil(slug);
   if (!perfil) return;
@@ -279,7 +324,15 @@ export function sembrarPerfil(slug, opciones = {}) {
     // se elegia atender de 9 a 19 y el bot seguia ofreciendo las 8:00. Se
     // recorta, nunca se estira: los bloques y el corte de almuerzo son del
     // cliente, aqui solo se le quita lo que cae fuera de lo que dijo.
-    if (perfil.citas?.horario) recortarAgenda(perfil.citas.horario, inicio, fin);
+    // La agenda solo se recorta con una ventana normal. Una que cruza la
+    // medianoche (17→8) no es un intervalo que se pueda intersectar con los
+    // bloques de un dia: aplicarla dejaria la agenda entera en null y el bot
+    // contestaria «no hay cupo» a todo. La ventana nocturna es CUANDO RESPONDE
+    // el bot, que no tiene por que coincidir con cuando hay citas.
+    const cruzaMedianoche = inicio !== null && fin !== null && inicio > fin;
+    if (perfil.citas?.horario && !cruzaMedianoche) {
+      recortarAgenda(perfil.citas.horario, inicio, fin);
+    }
   }
 
   escribirPerfil(slug, perfil);
@@ -775,6 +828,10 @@ export async function preparar(slug, log, siembra = null) {
     sembrarPerfil(slug, siembra);
     const p = leerPerfil(slug);
     log(`Lo elegido en el alta aplicado: ${(p.modulos || []).join(' + ') || 'sin modulos'}`);
+  }
+
+  if (siembra?.formularioId) {
+    await volcarFormulario(slug, siembra.formularioId, log);
   }
 
   log('Publicando el webhook en nginx…');

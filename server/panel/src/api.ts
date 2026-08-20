@@ -185,6 +185,64 @@ const enviar = <T>(ruta: string, datos: unknown) => pedir<T>(ruta, {
   body: JSON.stringify(datos),
 });
 
+// ---- formularios de onboarding ----
+
+export type AvanceForm = {
+  total: number; hechas: number; criticas: number; criticasHechas: number;
+  porcentaje: number; listo: boolean;
+};
+
+export type ResumenForm = {
+  id: string;
+  negocio: string;
+  tipoBot: 'tienda' | 'citas' | 'ambos';
+  contacto: string;
+  nota: string;
+  estado: 'abierto' | 'entregado' | 'usado';
+  creado: string;
+  actualizado: string;
+  entregadoEn: string | null;
+  usadoEn: string | null;
+  usadoPor: string | null;
+  adjuntos: number;
+  avance: AvanceForm;
+};
+
+export type PreguntaForm = {
+  id: string;
+  seccion: string;
+  n: number;
+  tipo: string;
+  pregunta: string;
+  ayuda?: string;
+  critico?: boolean;
+  opciones?: { id: string; texto: string }[];
+  conNota?: string;
+  etiquetaTexto?: string;
+  varios?: boolean;
+  acepta?: string;
+  filas?: number;
+};
+
+export type SeccionForm = {
+  id: string; numero: number; titulo: string; descripcion: string; dtgp?: boolean;
+};
+
+export type AdjuntoForm = { nombre: string; guardado: string; bytes: number; subido: string };
+
+export type DetalleForm = {
+  formulario: ResumenForm & {
+    token: string;
+    clave: string;
+    respuestas: Record<string, unknown>;
+    origen: Record<string, string>;
+    adjuntos: Record<string, AdjuntoForm[]>;
+  };
+  preguntas: PreguntaForm[];
+  secciones: SeccionForm[];
+  resumen: ResumenForm;
+};
+
 export const api = {
   sistema: () => pedir<Sistema>('/api/sistema'),
   tenants: () => pedir<Tenant[]>('/api/tenants'),
@@ -193,6 +251,7 @@ export const api = {
     pedir<Tenant & { credenciales?: { email: string; password: string } }>(
       `/api/tenant?slug=${encodeURIComponent(slug)}${credenciales ? '&credenciales=si' : ''}`,
     ),
+  urlLogo: (slug: string) => `${contexto.base}/api/tenant/logo?slug=${encodeURIComponent(slug)}`,
   colorSugerido: (logo: string) => enviar<{ color: string }>('/api/color-sugerido', { logo }),
   crear: (datos: Record<string, unknown>) =>
     enviar<{ slug: string; job: string; dominio: string }>('/api/tenants', datos),
@@ -200,6 +259,43 @@ export const api = {
     enviar<{ job: string }>('/api/accion', { slug, accion, confirmar }),
   entrar: (usuario: string, clave: string) => enviar<{ ok: true }>('/api/login', { usuario, clave }),
   salir: () => fetch(`${contexto.base}/api/logout`, { method: 'POST' }),
+
+  formularios: {
+    listar: () => pedir<{
+      formularios: ResumenForm[];
+      tipos: { id: string; titulo: string; descripcion: string }[];
+    }>('/api/formularios'),
+    crear: (datos: { negocio: string; tipoBot: string; contacto?: string; nota?: string }) =>
+      enviar<{ formulario: ResumenForm; token: string; clave: string }>('/api/formularios', datos),
+    detalle: (id: string) => pedir<DetalleForm>(`/api/formularios/detalle?id=${encodeURIComponent(id)}`),
+    datosAlta: (id: string) => pedir<{
+      negocio: string;
+      nombre: string;
+      marca: string;
+      ciudad: string;
+      asistente: string;
+      modulos: string[];
+      domicilios: boolean;
+      horaInicio: number | null;
+      horaFin: number | null;
+      telefonoAvisos: string;
+      logo: { nombre: string; datos: string } | null;
+      avance: AvanceForm;
+    }>(`/api/formularios/alta?id=${encodeURIComponent(id)}`),
+    responder: (id: string, pregunta: string, valor: unknown) =>
+      pedir<{ avance: AvanceForm }>('/api/formularios/respuesta', {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ id, pregunta, valor }),
+      }),
+    nuevaClave: (id: string) => enviar<{ clave: string }>('/api/formularios/clave', { id }),
+    marcarEntregado: (id: string) => enviar<{ ok: true }>('/api/formularios/entregado', { id }),
+    borrar: (id: string) => enviar<{ ok: true }>('/api/formularios/borrar', { id }),
+    urlBriefing: (id: string) => `${contexto.base}/api/formularios/briefing?id=${encodeURIComponent(id)}`,
+    urlAdjunto: (id: string, guardado: string) =>
+      `${contexto.base}/api/formularios/adjunto?id=${encodeURIComponent(id)}`
+      + `&archivo=${encodeURIComponent(guardado)}`,
+  },
 
   bot: {
     preparar: (slug: string) => enviar<{ job: string }>('/api/bot/preparar', { slug }),

@@ -30,9 +30,26 @@ def ahora_local() -> datetime:
 
 
 def dentro_horario() -> bool:
+    """¿El bot está en su ventana de atención?
+
+    La ventana puede CRUZAR LA MEDIANOCHE, y ese no es un caso raro: hay
+    clientes cuyo equipo atiende de día y quieren el bot justo al revés,
+    cubriendo la noche (CompuXtreme: gente de 8 a 5, bot de 5 p.m. a 8 a.m.).
+    Con la comparación ingenua `inicio <= h < fin`, un 17→8 no se cumple a
+    ninguna hora y el bot se queda mudo las 24 horas sin un solo error en el
+    log, que es la peor forma de fallar.
+    """
     p = perfil_mod.actual()
     h = ahora_local().hour
-    return int(p.get("operacion.horario.inicio", 0)) <= h < int(p.get("operacion.horario.fin", 24))
+    inicio = int(p.get("operacion.horario.inicio", 0))
+    fin = int(p.get("operacion.horario.fin", 24))
+    # inicio == fin significa 24 horas. Es la lectura útil: la alternativa
+    # —cero horas de atención— no la pide nadie y se consigue apagando el bot.
+    if inicio == fin:
+        return True
+    if inicio < fin:
+        return inicio <= h < fin
+    return h >= inicio or h < fin
 
 
 def salientes_hora() -> int:

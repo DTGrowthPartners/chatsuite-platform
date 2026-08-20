@@ -1,8 +1,8 @@
 // Panel de aprovisionamiento de Chatsuite.
 //
-// Sirve el panel estatico y la API. No trae capa de login propia: va detras de
-// nginx con auth basic, igual que el panel /wa/ de compuxtreme. Escucha solo en
-// 127.0.0.1, asi que la unica puerta es nginx.
+// Sirve el panel estatico y la API. Trae pantalla de acceso propia con sesion
+// por cookie firmada; nginx solo hace de proxy. Escucha solo en 127.0.0.1, asi
+// que la unica puerta es nginx.
 import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
@@ -14,6 +14,9 @@ import * as bots from './bots.js';
 import * as ciclo from './ciclo.js';
 import * as evolution from './evolution.js';
 import { EXTERNOS } from './externos.js';
+import * as formularios from './formularios.js';
+import * as formularioWeb from './formulario-web.js';
+import { preguntasDe, TIPOS_BOT } from './formulario-preguntas.js';
 import * as jobs from './jobs.js';
 import {
   IDS_PASOS, aprovisionar, correr, nuevoTenant, proyectoOcupado, validarSlug,
@@ -32,6 +35,9 @@ const TIPOS = {
   // recibe como octet-stream, las rechaza y cae a la fuente del sistema.
   '.woff2': 'font/woff2',
   '.woff': 'font/woff',
+  // La pantalla de acceso trae video de fondo y su fotograma de respaldo.
+  '.mp4': 'video/mp4',
+  '.jpg': 'image/jpeg',
 };
 
 const json = (res, codigo, cuerpo) => {
@@ -58,6 +64,38 @@ function leerCuerpo(req, limiteMB = 12) {
       try { resolve(trozos.length ? JSON.parse(Buffer.concat(trozos).toString('utf8')) : {}); }
       catch (err) { reject(new Error(`JSON invalido: ${err.message}`)); }
     });
+    req.on('error', reject);
+  });
+}
+
+/**
+ * Lee el cuerpo tal cual, sin parsear. Para los adjuntos del formulario, que
+ * suben en crudo y no en base64: un Excel de 25 MB pasaria a 34 MB codificado,
+ * y ademas obligaria a tener las dos copias en memoria a la vez.
+ */
+function leerBinario(req, limiteMB) {
+  return new Promise((resolve, reject) => {
+    const trozos = [];
+    let bytes = 0;
+    let excedido = false;
+    req.on('data', (t) => {
+      bytes += t.length;
+      // Se mide lo que llega, no el content-length: ese encabezado lo pone quien
+      // sube y puede mentir.
+      if (bytes > limiteMB * 1024 * 1024) {
+        // Se deja de acumular pero NO se destruye la peticion: cortando el
+        // socket aqui, el navegador recibe una conexion caida en vez del aviso
+        // de que el archivo pesa demasiado, y el cliente no entiende que paso.
+        // Lo que sigue llegando se descarta, y nginx ya frena mucho antes.
+        excedido = true;
+        trozos.length = 0;
+        return;
+      }
+      if (!excedido) trozos.push(t);
+    });
+    req.on('end', () => (excedido
+      ? reject(new Error(`el archivo supera ${limiteMB} MB`))
+      : resolve(Buffer.concat(trozos))));
     req.on('error', reject);
   });
 }
@@ -141,6 +179,110 @@ const rutas = {
       'set-cookie': auth.cookieBorrada(req),
     });
     res.end(JSON.stringify({ ok: true }));
+  },
+
+  // ---------------------------------------------------------- formularios
+  //
+  // El onboarding de cada negocio. Estas rutas son las del panel: crear el
+  // enlace, mirar como va y responder por el cliente. Las que usa el cliente
+  // cuelgan de /api/form/ y se atienden antes de la guardia de sesion.
+  'GET /api/formularios': async (req, res) => json(res, 200, {
+    formularios: formularios.listar(),
+    tipos: TIPOS_BOT,
+  }),
+
+  'POST /api/formularios': async (req, res) => {
+    const cuerpo = await leerCuerpo(req);
+    const form = formularios.crear(cuerpo);
+    json(res, 201, { formulario: formularios.resumen(form), token: form.token, clave: form.clave });
+  },
+
+  'GET /api/formularios/detalle': async (req, res, url) => {
+    const form = formularios.leer(url.searchParams.get('id'));
+    if (!form) return json(res, 404, { error: 'el formulario no existe' });
+    json(res, 200, {
+      formulario: form,
+      ...preguntasDe(form.tipoBot),
+      resumen: formularios.resumen(form),
+    });
+  },
+
+  'PUT /api/formularios/respuesta': async (req, res) => {
+    const { id, pregunta, valor } = await leerCuerpo(req);
+    // origen 'dtgp': en el detalle se distingue lo que adelantamos nosotros de
+    // lo que contesto el negocio, que no vale lo mismo al revisar.
+    json(res, 200, { avance: await formularios.guardarRespuesta(id, pregunta, valor, 'dtgp') });
+  },
+
+  'POST /api/formularios/clave': async (req, res) => {
+    const { id } = await leerCuerpo(req);
+    json(res, 200, { clave: await formularios.nuevaClave(id) });
+  },
+
+  'POST /api/formularios/entregado': async (req, res) => {
+    const { id } = await leerCuerpo(req);
+    await formularios.marcarEntregado(id);
+    json(res, 200, { ok: true });
+  },
+
+  'POST /api/formularios/borrar': async (req, res) => {
+    const { id } = await leerCuerpo(req);
+    formularios.eliminar(id);
+    json(res, 200, { ok: true });
+  },
+
+  // Lo que el modal de alta necesita para rellenarse solo. El logo viaja como
+  // data URI porque el modal ya sabe tratarlo asi: es el mismo camino que sigue
+  // un logo subido a mano, incluido el color que se sugiere a partir de el.
+  'GET /api/formularios/alta': async (req, res, url) => {
+    const form = formularios.leer(url.searchParams.get('id'));
+    if (!form) return json(res, 404, { error: 'el formulario no existe' });
+
+    const datos = formularios.datosParaAlta(form);
+    let logo = null;
+    if (datos.logo) {
+      const base = formularios.rutaAdjuntos(form.id);
+      const destino = path.resolve(base, datos.logo.guardado);
+      if (destino.startsWith(base) && fs.existsSync(destino)) {
+        const tipos = { '.png': 'png', '.jpg': 'jpeg', '.jpeg': 'jpeg', '.webp': 'webp' };
+        const tipo = tipos[path.extname(datos.logo.guardado).toLowerCase()];
+        // Un SVG no sirve: el generador de marca trabaja con mapa de bits y el
+        // modal lo pintaria pero el alta fallaria mas adelante, ya sin contexto.
+        if (tipo) {
+          logo = {
+            nombre: datos.logo.nombre,
+            datos: `data:image/${tipo};base64,${fs.readFileSync(destino).toString('base64')}`,
+          };
+        }
+      }
+    }
+    json(res, 200, { ...datos, logo, negocio: form.negocio, avance: formularios.resumen(form).avance });
+  },
+
+  'GET /api/formularios/briefing': async (req, res, url) => {
+    const form = formularios.leer(url.searchParams.get('id'));
+    if (!form) return json(res, 404, { error: 'el formulario no existe' });
+    res.writeHead(200, { 'content-type': 'text/markdown; charset=utf-8' });
+    res.end(formularios.briefing(form));
+  },
+
+  'GET /api/formularios/adjunto': async (req, res, url) => {
+    const form = formularios.leer(url.searchParams.get('id'));
+    if (!form) return json(res, 404, { error: 'el formulario no existe' });
+    const guardado = url.searchParams.get('archivo') || '';
+    const ficha = Object.values(form.adjuntos || {}).flat().find((a) => a.guardado === guardado);
+    if (!ficha) return json(res, 404, { error: 'ese adjunto no existe' });
+
+    const base = formularios.rutaAdjuntos(form.id);
+    const destino = path.resolve(base, guardado);
+    if (!destino.startsWith(base) || !fs.existsSync(destino)) {
+      return json(res, 404, { error: 'ese adjunto no existe' });
+    }
+    res.writeHead(200, {
+      'content-type': 'application/octet-stream',
+      'content-disposition': `attachment; filename="${ficha.nombre.replace(/["\\]/g, '')}"`,
+    });
+    fs.createReadStream(destino).pipe(res);
   },
 
   'GET /api/sistema': async (req, res) => {
@@ -236,6 +378,32 @@ const rutas = {
 
     const job = enSegundoPlano(slug, `Alta de ${tenant.nombre}`, (log) => aprovisionar(slug, log));
     json(res, 202, { slug, job: job.id, dominio: tenant.dominio, puerto: tenant.puerto });
+  },
+
+  // El logo original del cliente, para pintarlo en su tarjeta. Se sirve el que
+  // se subio al alta (`_logo-original.*`) y no el generado en brand/, que viene
+  // recortado y recoloreado para el sidebar de Chatwoot y en una tarjeta se ve
+  // mal. La extension sale del tenant: probar las tres a ciegas abriria la
+  // puerta a pedir cualquier archivo del directorio.
+  'GET /api/tenant/logo': async (req, res, url) => {
+    const tenant = obtener(url.searchParams.get('slug'));
+    if (!tenant) return json(res, 404, { error: 'no existe' });
+
+    const extension = tenant.logoExtension || '.png';
+    if (!['.png', '.jpg', '.webp'].includes(extension)) {
+      return json(res, 404, { error: 'sin logo' });
+    }
+    const archivo = path.join(rutaTenant(tenant.slug), `_logo-original${extension}`);
+    if (!fs.existsSync(archivo)) return json(res, 404, { error: 'sin logo' });
+
+    const tipos = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp' };
+    res.writeHead(200, {
+      'content-type': tipos[extension],
+      // El logo de un cliente no cambia salvo que se rehaga el alta, y la lista
+      // se sondea cada 15 s: sin cache serian tantas descargas como refrescos.
+      'cache-control': 'private, max-age=3600',
+    });
+    fs.createReadStream(archivo).pipe(res);
   },
 
   'GET /api/tenant': async (req, res, url) => {
@@ -494,6 +662,19 @@ const rutas = {
 const servidor = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
   const clave = `${req.method} ${url.pathname}`;
+
+  // El formulario de onboarding lo llena el dueño del negocio, que no tiene
+  // credenciales del panel: su puerta es token + clave y su propia cookie. Va
+  // antes de la guardia de sesion a proposito.
+  if (url.pathname.startsWith('/f/') || url.pathname.startsWith('/api/form/')) {
+    try {
+      await formularioWeb.atender(req, res, url, leerCuerpo, leerBinario);
+    } catch (err) {
+      if (!res.headersSent) json(res, 400, { error: err.message });
+      else res.end();
+    }
+    return;
+  }
 
   // El configurador del cliente vive en otro dominio y con otra puerta: no usa
   // la cookie del panel, sino la sesion de Chatwoot del propio cliente. Va antes

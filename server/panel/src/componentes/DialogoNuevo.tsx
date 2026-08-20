@@ -1,8 +1,8 @@
-import { useRef, useState } from 'react';
-import { ChevronDown, Loader2, Upload } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { ChevronDown, FileText, Loader2, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 
-import { api, leerArchivo } from '@/api';
+import { api, leerArchivo, type ResumenForm } from '@/api';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -11,6 +11,9 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 
 type Props = {
@@ -21,9 +24,19 @@ type Props = {
 };
 
 const HORAS = Array.from({ length: 25 }, (_, i) => i);
+const HORAS_ITEMS = Object.fromEntries(HORAS.map((h) => [String(h), `${h}:00`]));
 
-const SELECT = 'h-9 w-full cursor-pointer rounded-md border bg-transparent px-3 text-sm '
-  + 'outline-none focus:border-ring';
+const ZONAS = [
+  { id: 'America/Bogota', titulo: 'Bogotá (COT)' },
+  { id: 'America/Mexico_City', titulo: 'Ciudad de México' },
+  { id: 'America/Lima', titulo: 'Lima' },
+  { id: 'America/Santiago', titulo: 'Santiago' },
+  { id: 'America/Argentina/Buenos_Aires', titulo: 'Buenos Aires' },
+  { id: 'America/Caracas', titulo: 'Caracas' },
+  { id: 'America/Panama', titulo: 'Panamá' },
+  { id: 'America/New_York', titulo: 'Nueva York' },
+  { id: 'Europe/Madrid', titulo: 'Madrid' },
+];
 
 export function DialogoNuevo({ abierto, dominioBase, alCerrar, alCreado }: Props) {
   const [nombre, setNombre] = useState('');
@@ -70,8 +83,75 @@ export function DialogoNuevo({ abierto, dominioBase, alCerrar, alCreado }: Props
   // despues obliga a desconectar el numero y volver a escanear.
   const [importarHistorial, setImportarHistorial] = useState(false);
 
+  // Formularios de onboarding disponibles para traer al alta.
+  const [formularios, setFormularios] = useState<ResumenForm[]>([]);
+  const [formularioId, setFormularioId] = useState('');
+  const [trayendo, setTrayendo] = useState(false);
+
   // Si el usuario ya eligio color a mano, subir otro logo no se lo pisa.
   const colorManual = useRef(false);
+
+  // La lista se pide al abrir y no al montar: el modal vive montado todo el
+  // tiempo detras del panel, y un formulario creado hace un minuto tiene que
+  // aparecer sin recargar la pagina.
+  useEffect(() => {
+    if (!abierto) return;
+    api.formularios.listar()
+      .then((d) => setFormularios(d.formularios))
+      .catch(() => setFormularios([]));
+  }, [abierto]);
+
+  /**
+   * Trae un formulario al alta. Solo rellena lo que este vacio o lo que el
+   * formulario contesta sin ambiguedad; el correo del admin y el subdominio
+   * siguen siendo decision nuestra, porque no salen del cuestionario.
+   */
+  async function traerFormulario(id: string) {
+    setFormularioId(id);
+    if (!id) return;
+    setTrayendo(true);
+    setError(null);
+    try {
+      const d = await api.formularios.datosAlta(id);
+      if (d.nombre) cambiarNombre(d.nombre);
+      if (d.marca) setMarca(d.marca);
+      if (d.ciudad) setCiudad(d.ciudad);
+      setConBot(true);
+      if (d.asistente) setAsistente(d.asistente);
+      if (d.modulos?.length) setModulosBot(d.modulos);
+      setDomicilios(Boolean(d.domicilios));
+      if (d.telefonoAvisos) setTelefonoAvisos(d.telefonoAvisos);
+      if (d.horaInicio !== null) setHoraInicio(d.horaInicio);
+      if (d.horaFin !== null) setHoraFin(d.horaFin);
+
+      if (d.logo) {
+        setLogo(d.logo.datos);
+        setNombreLogo(d.logo.nombre);
+        if (!colorManual.current) {
+          setPistaColor('Analizando el logo del formulario…');
+          try {
+            const { color: sugerido } = await api.colorSugerido(d.logo.datos);
+            setColor(sugerido); setHex(sugerido.toUpperCase());
+            setPistaColor(`Sugerido del logo del formulario: ${sugerido}.`);
+          } catch {
+            setPistaColor('El logo vino del formulario; elige el color a mano.');
+          }
+        }
+      }
+
+      const faltan = d.avance.criticas - d.avance.criticasHechas;
+      toast.success(`Formulario de ${d.negocio} traído`, {
+        description: faltan > 0
+          ? `Ojo: le faltan ${faltan} respuestas imprescindibles.`
+          : 'Está completo. El briefing entra en negocio.md del bot.',
+      });
+    } catch (e) {
+      setError((e as Error).message);
+      setFormularioId('');
+    } finally {
+      setTrayendo(false);
+    }
+  }
 
   function limpiar() {
     setNombre(''); setSlug(''); setEmail(''); setColor('#007FFC'); setHex('#007FFC');
@@ -82,6 +162,7 @@ export function DialogoNuevo({ abierto, dominioBase, alCerrar, alCreado }: Props
     setModulosBot(['tienda']); setDomicilios(false); setTelefonoAvisos('');
     setHoraInicio(8); setHoraFin(20);
     setConWhatsapp(false); setImportarHistorial(false);
+    setFormularioId('');
     colorManual.current = false;
   }
 
@@ -138,7 +219,6 @@ export function DialogoNuevo({ abierto, dominioBase, alCerrar, alCreado }: Props
     if (conBot && telefonoAvisos.trim() && (digitos.length < 10 || digitos.length > 13)) {
       return setError('el número de avisos va con indicativo y sin signos (ej. 573001234567)');
     }
-    if (conBot && horaFin <= horaInicio) return setError('la hora de cierre va después de la de apertura');
     setEnviando(true);
     try {
       const r = await api.crear({
@@ -153,6 +233,7 @@ export function DialogoNuevo({ abierto, dominioBase, alCerrar, alCreado }: Props
           telefonoAvisos: digitos,
           nombreAvisos: nombre.trim(),
           horario: { inicio: horaInicio, fin: horaFin },
+          formularioId: formularioId || null,
         } : null,
         whatsapp: conWhatsapp ? { crear: true, importarHistorial } : null,
       });
@@ -188,6 +269,42 @@ export function DialogoNuevo({ abierto, dominioBase, alCerrar, alCreado }: Props
 
         <form onSubmit={enviar} className="flex min-h-0 flex-1 flex-col gap-4">
           <div className="grid min-h-0 flex-1 gap-4 overflow-y-auto pr-1">
+
+          {formularios.length > 0 && (
+            <div className="grid gap-2 rounded-xl border bg-muted/30 p-3.5">
+              <Label htmlFor="formulario" className="flex items-center gap-2">
+                <FileText className="size-3.5" /> Traer un formulario de onboarding
+              </Label>
+              <Select
+                value={formularioId || 'ninguno'}
+                disabled={trayendo}
+                items={{
+                  ninguno: 'Sin formulario — lleno todo a mano',
+                  ...Object.fromEntries(formularios.map((f) => [f.id, f.negocio])),
+                }}
+                onValueChange={(v) => traerFormulario(v === 'ninguno' ? '' : String(v))}
+              >
+                <SelectTrigger id="formulario"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ninguno">Sin formulario — lleno todo a mano</SelectItem>
+                  {formularios.map((f) => (
+                    <SelectItem key={f.id} value={f.id}>
+                      {f.negocio} · {f.avance.criticasHechas}/{f.avance.criticas} imprescindibles
+                      {f.estado === 'usado' ? ` · ya usado en ${f.usadoPor}` : ''}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                {trayendo
+                  ? 'Trayendo…'
+                  : formularioId
+                    ? 'Rellenado con lo que respondió el cliente. Revisa y corrige lo que haga falta: '
+                      + 'el resto del formulario entra en negocio.md, que es de donde el bot saca qué empresa es.'
+                    : 'Lo que respondió el dueño del negocio se vuelca sobre este formulario y sobre el perfil del bot.'}
+              </p>
+            </div>
+          )}
           <div className="grid items-start gap-4 sm:grid-cols-2">
             <div className="grid gap-2">
               <Label htmlFor="nombre">Nombre del cliente</Label>
@@ -315,32 +432,34 @@ export function DialogoNuevo({ abierto, dominioBase, alCerrar, alCreado }: Props
                 <div className="grid items-start gap-4 sm:col-span-2 sm:grid-cols-3">
                 <div className="grid gap-2">
                   <Label htmlFor="idioma">Idioma del dashboard</Label>
-                  <select
-                    id="idioma" className={SELECT}
-                    value={idioma} onChange={(e) => setIdioma(e.target.value)}
+                  <Select
+                    value={idioma}
+                    items={{ es: 'Español', en: 'English', pt_BR: 'Português (BR)' }}
+                    onValueChange={(v) => setIdioma(String(v))}
                   >
-                    <option value="es">Español</option>
-                    <option value="en">English</option>
-                    <option value="pt_BR">Português (BR)</option>
-                  </select>
+                    <SelectTrigger id="idioma"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="es">Español</SelectItem>
+                      <SelectItem value="en">English</SelectItem>
+                      <SelectItem value="pt_BR">Português (BR)</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 <div className="grid gap-2">
                   <Label htmlFor="zona">Zona horaria</Label>
-                  <select
-                    id="zona" className={SELECT}
-                    value={zona} onChange={(e) => setZona(e.target.value)}
+                  <Select
+                    value={zona}
+                    items={Object.fromEntries(ZONAS.map((z) => [z.id, z.titulo]))}
+                    onValueChange={(v) => setZona(String(v))}
                   >
-                    <option value="America/Bogota">Bogotá (COT)</option>
-                    <option value="America/Mexico_City">Ciudad de México</option>
-                    <option value="America/Lima">Lima</option>
-                    <option value="America/Santiago">Santiago</option>
-                    <option value="America/Argentina/Buenos_Aires">Buenos Aires</option>
-                    <option value="America/Caracas">Caracas</option>
-                    <option value="America/Panama">Panamá</option>
-                    <option value="America/New_York">Nueva York</option>
-                    <option value="Europe/Madrid">Madrid</option>
-                  </select>
+                    <SelectTrigger id="zona"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {ZONAS.map((z) => (
+                        <SelectItem key={z.id} value={z.id}>{z.titulo}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 <div className="grid gap-2">
@@ -434,27 +553,45 @@ export function DialogoNuevo({ abierto, dominioBase, alCerrar, alCreado }: Props
 
                         <div className="grid grid-cols-2 gap-3">
                           <div className="grid gap-2">
-                            <Label htmlFor="desde">Atiende desde</Label>
-                            <select
-                              id="desde" className={SELECT} value={horaInicio}
-                              onChange={(e) => setHoraInicio(Number(e.target.value))}
+                            <Label htmlFor="desde">Responde desde</Label>
+                            <Select
+                              value={String(horaInicio)}
+                              items={HORAS_ITEMS}
+                              onValueChange={(v) => setHoraInicio(Number(v))}
                             >
-                              {HORAS.map((h) => <option key={h} value={h}>{`${h}:00`}</option>)}
-                            </select>
+                              <SelectTrigger id="desde"><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                {HORAS.map((h) => (
+                                  <SelectItem key={h} value={String(h)}>{`${h}:00`}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
                           </div>
                           <div className="grid gap-2">
                             <Label htmlFor="hasta">Hasta</Label>
-                            <select
-                              id="hasta" className={SELECT} value={horaFin}
-                              onChange={(e) => setHoraFin(Number(e.target.value))}
+                            <Select
+                              value={String(horaFin)}
+                              items={HORAS_ITEMS}
+                              onValueChange={(v) => setHoraFin(Number(v))}
                             >
-                              {HORAS.map((h) => <option key={h} value={h}>{`${h}:00`}</option>)}
-                            </select>
+                              <SelectTrigger id="hasta"><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                {HORAS.map((h) => (
+                                  <SelectItem key={h} value={String(h)}>{`${h}:00`}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
                           </div>
                         </div>
 
                         <p className="text-xs text-muted-foreground">
-                          Se puede cambiar después, en Operación.
+                          {horaInicio === horaFin
+                            ? 'Misma hora de inicio y fin: el bot responde las 24 horas.'
+                            : horaFin < horaInicio
+                              ? `El bot responde de ${horaInicio}:00 a ${horaFin}:00 del día `
+                                + 'siguiente. Sirve para cubrir la noche cuando el equipo '
+                                + 'atiende de día.'
+                              : 'Se puede cambiar después, en Operación.'}
                         </p>
                       </div>
                     </div>
