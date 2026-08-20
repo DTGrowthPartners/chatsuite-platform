@@ -27,6 +27,8 @@ type Pregunta = {
   id: string;
   seccion: string;
   n: number;
+  /** Numero que se muestra: lo calcula el servidor sobre el conjunto filtrado. */
+  numero: number;
   tipo: 'texto' | 'largo' | 'si_no' | 'si_no_texto' | 'opciones' | 'multiple' | 'archivo'
     | 'horario' | 'ventana' | 'lista';
   pregunta: string;
@@ -40,6 +42,7 @@ type Pregunta = {
   filas?: number;
   columnas?: Columna[];
   etiquetaAgregar?: string;
+  fotos?: { columna: string; columnaNombre: string; etiqueta: string; acepta: string };
   camposAdjunto?: CampoAdjunto[];
   notasVarias?: string;
 };
@@ -357,9 +360,14 @@ function Cuestionario({ inicial }: { inicial: Formulario }) {
                   adjuntos={form.adjuntos[p.id] || []}
                   loPusoDtgp={form.origen[p.id] === 'dtgp'}
                   alCambiar={cambiar}
-                  alAdjuntar={(lista, av) => setForm((f) => ({
+                  // El servidor puede devolver, ademas de los adjuntos, las
+                  // filas que acaba de crear a partir de las fotos. Se toman tal
+                  // cual y NO se vuelven a guardar: ya estan escritas, y
+                  // reenviarlas mientras suben mas fotos pisaria las nuevas.
+                  alAdjuntar={(lista, av, filas) => setForm((f) => ({
                     ...f,
                     adjuntos: { ...f.adjuntos, [p.id]: lista },
+                    respuestas: filas ? { ...f.respuestas, [p.id]: filas } : f.respuestas,
                     avance: av ?? f.avance,
                   }))}
                 />
@@ -413,7 +421,7 @@ function Campo({ pregunta, valor, adjuntos, loPusoDtgp, alCambiar, alAdjuntar }:
   adjuntos: Adjunto[];
   loPusoDtgp: boolean;
   alCambiar: (id: string, valor: unknown, inmediato?: boolean) => void;
-  alAdjuntar: (lista: Adjunto[], avance?: Avance) => void;
+  alAdjuntar: (lista: Adjunto[], avance?: Avance, filas?: Fila[]) => void;
 }) {
   const v = valor as Record<string, unknown> | string | undefined;
 
@@ -421,7 +429,7 @@ function Campo({ pregunta, valor, adjuntos, loPusoDtgp, alCambiar, alAdjuntar }:
     <div className="rounded-xl border bg-card p-5">
       <div className="mb-3">
         <Label htmlFor={pregunta.id} className="text-sm leading-snug font-medium">
-          <span className="mr-1.5 text-muted-foreground tabular-nums">{pregunta.n}.</span>
+          <span className="mr-1.5 text-muted-foreground tabular-nums">{pregunta.numero}.</span>
           {pregunta.pregunta}
           {pregunta.critico && (
             <span className="ml-2 rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-medium tracking-wide text-amber-600 dark:text-amber-400">
@@ -452,7 +460,7 @@ function Control({ pregunta, valor, adjuntos, alCambiar, alAdjuntar }: {
   valor: unknown;
   adjuntos: Adjunto[];
   alCambiar: (id: string, valor: unknown, inmediato?: boolean) => void;
-  alAdjuntar: (lista: Adjunto[], avance?: Avance) => void;
+  alAdjuntar: (lista: Adjunto[], avance?: Avance, filas?: Fila[]) => void;
 }) {
   const obj = (valor || {}) as Record<string, unknown>;
   const nota = (
@@ -633,6 +641,20 @@ function Control({ pregunta, valor, adjuntos, alCambiar, alAdjuntar }: {
           etiquetaAgregar={pregunta.etiquetaAgregar}
           filas={(valor as Fila[]) || []}
           alCambiar={(filas) => alCambiar(pregunta.id, filas)}
+          columnaFoto={pregunta.fotos?.columna}
+          urlFoto={(g) => `/api/form/adjunto/ver?guardado=${encodeURIComponent(g)}`}
+          alQuitarFoto={(g) => {
+            // Se limpia la referencia y se guarda: el servidor recoge el archivo
+            // al ver que ya no lo usa ninguna fila.
+            const filas = ((valor as Fila[]) || [])
+              .map((f) => (f[pregunta.fotos!.columna] === g
+                ? { ...f, [pregunta.fotos!.columna]: '' }
+                : f));
+            alCambiar(pregunta.id, filas, true);
+          }}
+          extra={pregunta.fotos && (
+            <SubirFotos pregunta={pregunta} alSubir={alAdjuntar} />
+          )}
         />
       );
 
@@ -719,6 +741,61 @@ function HoraSelect({ valor, alCambiar }: { valor?: number; alCambiar: (h: numbe
         ))}
       </SelectContent>
     </Select>
+  );
+}
+
+/**
+ * Subida de fotos que estrena una fila por archivo.
+ *
+ * Se sube de una en una y no en paralelo: son fotos de camara, pesadas, y el
+ * navegador de un movil se atraganta con varias a la vez. Ademas cada respuesta
+ * trae la lista de filas ya actualizada, asi que en serie no hay forma de que
+ * dos subidas se pisen la fila.
+ */
+function SubirFotos({ pregunta, alSubir }: {
+  pregunta: Pregunta;
+  alSubir: (adjuntos: Adjunto[], avance?: Avance, filas?: Fila[]) => void;
+}) {
+  const [subiendo, setSubiendo] = useState(0);
+  const entrada = useRef<HTMLInputElement>(null);
+
+  async function subir(archivos: FileList | null) {
+    if (!archivos?.length) return;
+    for (const archivo of Array.from(archivos)) {
+      setSubiendo((n) => n + 1);
+      try {
+        const r = await fetch(
+          `/api/form/adjunto?pregunta=${encodeURIComponent(pregunta.id)}`
+          + `&nombre=${encodeURIComponent(archivo.name)}`,
+          { method: 'POST', body: archivo },
+        );
+        const d = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(d.error || `error ${r.status}`);
+        alSubir(d.adjuntos, d.avance, d.filas);
+      } catch (e) {
+        toast.error(`${archivo.name}: ${(e as Error).message}`);
+      } finally {
+        setSubiendo((n) => n - 1);
+      }
+    }
+    if (entrada.current) entrada.current.value = '';
+  }
+
+  return (
+    <>
+      <input
+        ref={entrada} type="file" className="hidden" multiple
+        accept={pregunta.fotos?.acepta}
+        onChange={(e) => subir(e.target.files)}
+      />
+      <Button
+        type="button" size="sm" disabled={subiendo > 0}
+        onClick={() => entrada.current?.click()}
+      >
+        {subiendo > 0 ? <Loader2 className="animate-spin" /> : <CloudUpload />}
+        {subiendo > 0 ? `Subiendo ${subiendo}…` : pregunta.fotos?.etiqueta}
+      </Button>
+    </>
   );
 }
 

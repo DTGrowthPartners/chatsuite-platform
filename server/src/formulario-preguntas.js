@@ -97,11 +97,21 @@ export const PREGUNTAS = [
   // ---- 2. Catalogo ----
   {
     id: 'lista_productos', seccion: 'catalogo', n: 8, critico: true, tipo: 'lista',
-    pregunta: 'Lista de productos',
-    ayuda: 'Agrega uno por fila. Si tienes muchos, subelos en el archivo de abajo y aqui '
-      + 'deja solo los que mas vendes. Si un precio esta por definir, escribelo: el bot '
-      + 'no inventa precios.',
-    etiquetaAgregar: 'Agregar producto',
+    pregunta: 'Tus productos',
+    ayuda: 'Sube las fotos y se crea una fila por cada una, con el nombre sacado del '
+      + 'archivo para que solo tengas que repasarlo. Si un producto no tiene foto, '
+      + 'agregalo a mano igual. Y si un precio esta por definir, escribelo tal cual: el '
+      + 'bot no inventa precios.',
+    etiquetaAgregar: 'Agregar producto sin foto',
+    // De cada archivo subido nace una fila. Antes las fotos iban en una pregunta
+    // aparte y nadie sabia que foto era de que producto: quedaba un ZIP con cien
+    // IMG_0423 y alguien tenia que emparejarlos a mano despues.
+    fotos: {
+      columna: 'foto',
+      columnaNombre: 'nombre',
+      etiqueta: 'Subir fotos de productos',
+      acepta: '.jpg,.jpeg,.png,.webp,.heic',
+    },
     columnas: [
       { id: 'nombre', etiqueta: 'Producto', ancho: 2 },
       { id: 'precio', etiqueta: 'Precio al detal' },
@@ -115,22 +125,6 @@ export const PREGUNTAS = [
     ayuda: 'Excel, CSV, JSON o texto. Si lo tienes en varios archivos, subelos todos.',
     varios: true,
     acepta: '.xlsx,.xls,.csv,.json,.txt,.tsv,.ods,.numbers,.pdf',
-  },
-  {
-    id: 'fotos_productos', seccion: 'catalogo', n: 9, critico: true, tipo: 'archivo',
-    pregunta: 'Fotos de los productos',
-    ayuda: 'Buena luz, minimo una por producto. Al subir cada foto dinos de que producto es: '
-      + 'sin eso no sabemos que foto mandar cuando un cliente pregunte por algo.',
-    varios: true,
-    acepta: '.zip,.jpg,.jpeg,.png,.webp,.heic',
-    // Cada archivo lleva sus propios datos. Un ZIP con cien fotos llamadas
-    // IMG_0423 no le dice nada a nadie, y adivinar el producto por el nombre del
-    // archivo es justo el trabajo manual que este formulario venia a quitar.
-    camposAdjunto: [
-      { id: 'producto', etiqueta: 'De que producto es', ancho: 2 },
-      { id: 'precio', etiqueta: 'Precio' },
-      { id: 'cantidad', etiqueta: 'Cantidad disponible' },
-    ],
   },
   {
     id: 'logo', seccion: 'catalogo', n: 9, critico: true, tipo: 'archivo',
@@ -162,7 +156,7 @@ export const PREGUNTAS = [
   },
   {
     id: 'catalogo_pdf', seccion: 'catalogo', n: 12, tipo: 'si_no',
-    pregunta: 'Quieren catalogo en PDF descargable ademas de las fotos sueltas?',
+    pregunta: 'Quieren catalogo en PDF descargable para compartir?',
   },
 
   // ---- 3. Precios ----
@@ -484,14 +478,34 @@ export const PREGUNTAS = [
   },
 ];
 
-/** Las preguntas que aplican a un tipo de bot, en orden de seccion. */
+/**
+ * Las preguntas que aplican a un tipo de bot, en orden de seccion.
+ *
+ * La numeracion que se muestra se calcula AQUI y no viene escrita en cada
+ * pregunta. El `n` de cada una es su numero en form/formulario-onboarding-bot.md
+ * y sirve para rastrearla hasta el documento, pero como numero de pantalla no
+ * vale: hay preguntas que comparten `n` porque en el documento eran un solo
+ * punto con varias partes —el catalogo y su archivo, el tono y las
+ * conversaciones—, y ademas el conjunto cambia con el tipo de bot. El resultado
+ * era una lista que iba «8, 8, 9, 9, 10» en tienda y saltaba de 7 a 24 en citas.
+ *
+ * Numerando sobre el conjunto ya filtrado, cada formulario sale 1..N seguido sin
+ * que haya que mantener nada a mano.
+ */
 export function preguntasDe(tipoBot) {
-  const secciones = SECCIONES.filter((s) => !s.soloBot || aplicaModulo(tipoBot, s.soloBot));
-  const validas = new Set(secciones.map((s) => s.id));
-  return {
-    secciones,
-    preguntas: PREGUNTAS.filter((p) => validas.has(p.seccion)),
-  };
+  const secciones = SECCIONES
+    .filter((s) => !s.soloBot || aplicaModulo(tipoBot, s.soloBot))
+    .map((s, i) => ({ ...s, numero: i + 1 }));
+  const orden = new Map(secciones.map((s, i) => [s.id, i]));
+
+  const preguntas = PREGUNTAS
+    .filter((p) => orden.has(p.seccion))
+    // Estable y por seccion: el orden dentro de PREGUNTAS ya es el bueno, pero
+    // en «ambos» las de citas van declaradas entre medias de las de tienda.
+    .sort((a, b) => orden.get(a.seccion) - orden.get(b.seccion))
+    .map((p, i) => ({ ...p, numero: i + 1 }));
+
+  return { secciones, preguntas };
 }
 
 /** Una respuesta cuenta como dada si tiene algo util dentro. */

@@ -283,10 +283,19 @@ const rutas = {
     if (!destino.startsWith(base) || !fs.existsSync(destino)) {
       return json(res, 404, { error: 'ese adjunto no existe' });
     }
-    res.writeHead(200, {
-      'content-type': 'application/octet-stream',
-      'content-disposition': `attachment; filename="${ficha.nombre.replace(/["\\]/g, '')}"`,
-    });
+    // Las miniaturas se piden con `enlinea`: con content-disposition el
+    // navegador se descarga la foto en vez de pintarla en la fila.
+    const IMAGENES = {
+      '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png',
+      '.webp': 'image/webp', '.heic': 'image/heic', '.gif': 'image/gif',
+    };
+    const imagen = IMAGENES[path.extname(guardado).toLowerCase()];
+    res.writeHead(200, url.searchParams.get('enlinea') === '1' && imagen
+      ? { 'content-type': imagen, 'cache-control': 'private, max-age=300' }
+      : {
+        'content-type': 'application/octet-stream',
+        'content-disposition': `attachment; filename="${ficha.nombre.replace(/["\\]/g, '')}"`,
+      });
     fs.createReadStream(destino).pipe(res);
   },
 

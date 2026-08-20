@@ -126,10 +126,13 @@ export async function atender(req, res, url, leerCuerpo, leerBinario) {
         subido: new Date().toISOString(),
       };
       try {
-        const lista = await formularios.registrarAdjunto(id, pregunta, ficha);
+        const { adjuntos, filas } = await formularios.registrarAdjunto(id, pregunta, ficha);
         const fresco = formularios.leer(id);
         return json(res, 200, {
-          adjuntos: lista,
+          adjuntos,
+          // En las preguntas con fotos, la subida ya dejo escrita la fila del
+          // producto: se devuelve para que la pantalla no tenga que adivinarla.
+          filas,
           avance: formularios.avance(fresco.tipoBot, fresco.respuestas, fresco.adjuntos),
         });
       } catch (err) {
@@ -138,6 +141,30 @@ export async function atender(req, res, url, leerCuerpo, leerBinario) {
         fs.rmSync(destino, { force: true });
         throw err;
       }
+    }
+
+    case 'GET /api/form/adjunto/ver': {
+      // La miniatura de una foto ya subida. Va en linea y no como descarga:
+      // emparejar fotos con nombres a ciegas, por el nombre del fichero, es
+      // justo lo que esta pregunta viene a evitar.
+      const guardado = url.searchParams.get('guardado') || '';
+      const ficha = Object.values(form.adjuntos || {}).flat().find((a) => a.guardado === guardado);
+      if (!ficha) return json(res, 404, { error: 'ese adjunto no existe' });
+
+      const base = formularios.rutaAdjuntos(id);
+      const destino = path.resolve(base, guardado);
+      if (!destino.startsWith(base) || !fs.existsSync(destino)) {
+        return json(res, 404, { error: 'ese adjunto no existe' });
+      }
+      const tipos = {
+        '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png',
+        '.webp': 'image/webp', '.heic': 'image/heic', '.gif': 'image/gif',
+      };
+      res.writeHead(200, {
+        'content-type': tipos[path.extname(guardado).toLowerCase()] || 'application/octet-stream',
+        'cache-control': 'private, max-age=300',
+      });
+      return fs.createReadStream(destino).pipe(res);
     }
 
     case 'POST /api/form/adjunto/meta': {

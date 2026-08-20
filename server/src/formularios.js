@@ -246,7 +246,8 @@ export function intentarEntrar(req, token, clave) {
 const PREGUNTAS_POR_ID = new Map(PREGUNTAS.map((p) => [p.id, p]));
 
 export function guardarRespuesta(id, preguntaId, valor, origen = 'cliente') {
-  if (!PREGUNTAS_POR_ID.has(preguntaId)) throw new Error(`pregunta desconocida: ${preguntaId}`);
+  const pregunta = PREGUNTAS_POR_ID.get(preguntaId);
+  if (!pregunta) throw new Error(`pregunta desconocida: ${preguntaId}`);
   return actualizar(id, (f) => {
     if (valor === null || valor === undefined || valor === '') {
       delete f.respuestas[preguntaId];
@@ -255,8 +256,44 @@ export function guardarRespuesta(id, preguntaId, valor, origen = 'cliente') {
       f.respuestas[preguntaId] = valor;
       f.origen[preguntaId] = origen;
     }
+
+    // Borrar la fila de un producto se lleva su foto. Se recogen aqui, mirando
+    // que archivos ya no referencia ninguna fila, en vez de pedirle al navegador
+    // que llame a dos endpoints y confie en que ambos lleguen: si el segundo
+    // falla, el archivo se queda ocupando disco para siempre.
+    if (pregunta.fotos) {
+      const usadas = new Set((f.respuestas[preguntaId] || [])
+        .map((fila) => fila?.[pregunta.fotos.columna])
+        .filter(Boolean));
+      const vivos = [];
+      for (const a of f.adjuntos[preguntaId] || []) {
+        if (usadas.has(a.guardado)) { vivos.push(a); continue; }
+        const destino = path.resolve(rutaAdjuntos(id), a.guardado);
+        if (destino.startsWith(rutaAdjuntos(id))) fs.rmSync(destino, { force: true });
+      }
+      f.adjuntos[preguntaId] = vivos;
+    }
+
     return avance(f.tipoBot, f.respuestas, f.adjuntos);
   });
+}
+
+/**
+ * Un nombre presentable a partir del nombre del archivo.
+ *
+ * Devuelve cadena vacia cuando el archivo se llama como lo bautizo la camara
+ * —IMG_0423, DSC00012, WhatsApp Image 2026…— porque ahi no hay informacion: es
+ * preferible un campo en blanco, que salta a la vista y se rellena, a un nombre
+ * de producto que dice «Img 0423» y que alguien da por bueno de un vistazo.
+ */
+export function nombreDesdeArchivo(nombre) {
+  const base = String(nombre || '').replace(/\.[^.]+$/, '');
+  const limpio = base.replace(/[_\-.]+/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!limpio) return '';
+  if (/^(img|dsc|dscn|photo|foto|image|imagen|pxl|screenshot|captura|whatsapp)\b/i.test(limpio)) return '';
+  // Casi todo digitos: un numero de serie, no un nombre.
+  if ((limpio.replace(/\D/g, '').length / limpio.length) > 0.5) return '';
+  return limpio.charAt(0).toUpperCase() + limpio.slice(1);
 }
 
 export function registrarAdjunto(id, preguntaId, archivo) {
@@ -265,14 +302,33 @@ export function registrarAdjunto(id, preguntaId, archivo) {
     const pregunta = PREGUNTAS_POR_ID.get(preguntaId);
     f.adjuntos[preguntaId] ||= [];
     // Una pregunta de archivo unico reemplaza; las de varios acumulan.
-    if (!pregunta.varios) {
+    if (!pregunta.varios && !pregunta.fotos) {
       for (const viejo of f.adjuntos[preguntaId]) {
         fs.rmSync(path.join(rutaAdjuntos(id), viejo.guardado), { force: true });
       }
       f.adjuntos[preguntaId] = [];
     }
     f.adjuntos[preguntaId].push(archivo);
-    return f.adjuntos[preguntaId];
+
+    // En las preguntas de tipo lista con fotos, cada archivo estrena su fila. Se
+    // hace aqui y no en el navegador para que subir veinte fotos seguidas no
+    // dependa de veinte guardados encadenados: cada subida deja la fila escrita.
+    if (pregunta.fotos) {
+      f.respuestas[preguntaId] ||= [];
+      const filas = f.respuestas[preguntaId];
+      // Si hay una fila en blanco al final, la foto la ocupa en vez de sumar otra.
+      const enBlanco = filas.findIndex((x) => !Object.values(x || {}).some((v) => String(v ?? '').trim()));
+      const fila = {
+        ...(enBlanco >= 0 ? filas[enBlanco] : {}),
+        [pregunta.fotos.columna]: archivo.guardado,
+        [pregunta.fotos.columnaNombre]: nombreDesdeArchivo(archivo.nombre),
+      };
+      if (enBlanco >= 0) filas[enBlanco] = fila;
+      else filas.push(fila);
+      f.origen[preguntaId] = 'cliente';
+    }
+
+    return { adjuntos: f.adjuntos[preguntaId], filas: f.respuestas[preguntaId] };
   });
 }
 
@@ -304,6 +360,14 @@ export function metaAdjunto(id, preguntaId, guardado, meta) {
 
 export function quitarAdjunto(id, preguntaId, guardado) {
   return actualizar(id, (f) => {
+    const pregunta = PREGUNTAS_POR_ID.get(preguntaId);
+    // Si la foto colgaba de una fila, la fila se queda pero sin ella: el
+    // producto sigue existiendo aunque se retire la imagen.
+    if (pregunta?.fotos) {
+      for (const fila of f.respuestas[preguntaId] || []) {
+        if (fila?.[pregunta.fotos.columna] === guardado) fila[pregunta.fotos.columna] = '';
+      }
+    }
     const lista = f.adjuntos[preguntaId] || [];
     const i = lista.findIndex((a) => a.guardado === guardado);
     if (i < 0) throw new Error('ese adjunto no existe');
@@ -480,11 +544,13 @@ export function briefing(form) {
       const archivos = form.adjuntos?.[pregunta.id] || [];
       if (!respondida(pregunta, valor) && !archivos.length) continue;
 
-      out.push(`### ${pregunta.n}. ${pregunta.pregunta}`);
+      out.push(`### ${pregunta.numero}. ${pregunta.pregunta}`);
       if (form.origen?.[pregunta.id] === 'dtgp') out.push('_(lo respondio DT Growth Partners)_');
       out.push('');
-      out.push(...formatearValor(pregunta, valor));
-      if (archivos.length) {
+      out.push(...formatearValor(pregunta, valor, archivos));
+      // En las listas con foto los archivos ya salen en su columna; repetirlos
+      // debajo es la misma informacion dos veces.
+      if (archivos.length && !pregunta.fotos) {
         out.push('', 'Adjuntos:');
         out.push(...archivos.map((a) => {
           // Lo que el cliente escribio sobre el archivo va en la misma linea:
@@ -504,23 +570,34 @@ export function briefing(form) {
   return `${out.join('\n').trimEnd()}\n`;
 }
 
-function formatearValor(pregunta, valor) {
+function formatearValor(pregunta, valor, archivos = []) {
   if (valor === undefined || valor === null) return [];
   if (pregunta.tipo === 'lista') {
     const filas = (Array.isArray(valor) ? valor : [])
       .filter((f) => Object.values(f || {}).some((v) => texto(v)));
     if (!filas.length) return [];
-    const cols = pregunta.columnas || [];
+    // La foto es una columna mas en el briefing: quien lo lea tiene que poder
+    // ir al archivo del producto sin cruzar dos listas a mano.
+    const cols = pregunta.fotos
+      ? [...(pregunta.columnas || []), { id: pregunta.fotos.columna, etiqueta: 'Foto' }]
+      : (pregunta.columnas || []);
+
+    // En la celda de la foto va el nombre con el que el cliente la subio, no el
+    // que le pusimos en disco: quien lea esto tiene que poder buscarla.
+    const porGuardado = new Map(archivos.map((a) => [a.guardado, a.nombre]));
+    const celda = (fila, col) => (pregunta.fotos && col.id === pregunta.fotos.columna
+      ? porGuardado.get(fila[col.id]) || ''
+      : fila[col.id]);
 
     // Con una sola columna una tabla es ruido; con varias, una tabla markdown se
     // lee de un vistazo y sobrevive al copiar y pegar.
-    if (cols.length === 1) return filas.map((f) => `- ${texto(f[cols[0].id])}`);
+    if (cols.length === 1) return filas.map((f) => `- ${texto(celda(f, cols[0]))}`);
 
     // Las columnas de texto largo revientan cualquier tabla, asi que esas listas
     // van como bloques.
     if (cols.some((c) => c.largo)) {
       return filas.flatMap((f) => [
-        ...cols.map((c) => (texto(f[c.id]) ? `- **${c.etiqueta}:** ${texto(f[c.id])}` : null))
+        ...cols.map((c) => (texto(celda(f, c)) ? `- **${c.etiqueta}:** ${texto(celda(f, c))}` : null))
           .filter(Boolean),
         '',
       ]).slice(0, -1);
@@ -530,7 +607,7 @@ function formatearValor(pregunta, valor) {
     return [
       `| ${cols.map((c) => c.etiqueta).join(' | ')} |`,
       `| ${cols.map(() => '---').join(' | ')} |`,
-      ...filas.map((f) => `| ${cols.map((c) => escapar(f[c.id]) || '—').join(' | ')} |`),
+      ...filas.map((f) => `| ${cols.map((c) => escapar(celda(f, c)) || '—').join(' | ')} |`),
     ];
   }
   if (pregunta.tipo === 'ventana') {

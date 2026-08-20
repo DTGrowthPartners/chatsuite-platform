@@ -1,4 +1,5 @@
-import { Plus, Trash2 } from 'lucide-react';
+import type { ReactNode } from 'react';
+import { ImageOff, Plus, Trash2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -26,13 +27,22 @@ export type Fila = Record<string, string>;
  * lista vacía obliga a un clic antes de poder escribir nada, y eso basta para
  * que mucha gente pase de largo la pregunta.
  */
-export function ListaFilas({ columnas, filas, etiquetaAgregar, id, compacto, alCambiar }: {
+export function ListaFilas({
+  columnas, filas, etiquetaAgregar, id, compacto, alCambiar,
+  columnaFoto, urlFoto, alQuitarFoto, extra,
+}: {
   columnas: Columna[];
   filas: Fila[];
   etiquetaAgregar?: string;
   id: string;
   compacto?: boolean;
   alCambiar: (filas: Fila[]) => void;
+  /** Nombre de la columna que guarda la referencia al archivo de la foto. */
+  columnaFoto?: string;
+  urlFoto?: (guardado: string) => string;
+  alQuitarFoto?: (guardado: string) => void;
+  /** Lo que va debajo del boton de agregar: la subida de fotos, por ejemplo. */
+  extra?: ReactNode;
 }) {
   const vacia = () => Object.fromEntries(columnas.map((c) => [c.id, ''])) as Fila;
   const conBlanco = filas.length ? filas : [vacia()];
@@ -52,6 +62,43 @@ export function ListaFilas({ columnas, filas, etiquetaAgregar, id, compacto, alC
     <div className="grid gap-2">
       {conBlanco.map((fila, i) => (
         <div key={i} className="flex items-start gap-2 rounded-lg border bg-background/40 p-2">
+          {columnaFoto && (
+            // La miniatura al lado del nombre: es lo unico que deja repasar de un
+            // vistazo que cada foto quedo con el producto que le toca.
+            <div className="mt-5 shrink-0">
+              {fila[columnaFoto] && urlFoto ? (
+                <div className="group/foto relative">
+                  <img
+                    src={urlFoto(fila[columnaFoto])}
+                    alt=""
+                    className="size-12 rounded-md object-cover ring-1 ring-border"
+                  />
+                  {alQuitarFoto && (
+                    <button
+                      type="button"
+                      aria-label="Quitar la foto de este producto"
+                      onClick={() => alQuitarFoto(fila[columnaFoto])}
+                      className="absolute -right-1.5 -top-1.5 grid size-5 place-items-center
+                        rounded-full bg-background text-muted-foreground opacity-0 ring-1
+                        ring-border transition hover:text-destructive
+                        group-hover/foto:opacity-100 focus-visible:opacity-100"
+                    >
+                      <Trash2 className="size-3" />
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div
+                  className="grid size-12 place-items-center rounded-md border border-dashed
+                    text-muted-foreground/50"
+                  title="Este producto no tiene foto"
+                >
+                  <ImageOff className="size-4" />
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="grid flex-1 gap-2 sm:grid-cols-6">
             {columnas.map((c) => {
               const span = Math.min(6, c.ancho ?? 1);
@@ -105,12 +152,15 @@ export function ListaFilas({ columnas, filas, etiquetaAgregar, id, compacto, alC
         </div>
       ))}
 
-      <Button
-        type="button" variant="outline" size="sm" className="justify-self-start"
-        onClick={() => alCambiar([...conBlanco, vacia()])}
-      >
-        <Plus /> {etiquetaAgregar || 'Agregar'}
-      </Button>
+      <div className="flex flex-wrap items-center gap-2">
+        {extra}
+        <Button
+          type="button" variant="outline" size="sm"
+          onClick={() => alCambiar([...conBlanco, vacia()])}
+        >
+          <Plus /> {etiquetaAgregar || 'Agregar'}
+        </Button>
+      </div>
     </div>
   );
 }

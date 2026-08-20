@@ -636,7 +636,7 @@ function PreguntaPanel({ pregunta, valor, adjuntos, formId, loPusoDtgp, alRespon
   return (
     <div className="rounded-lg border p-3">
       <div className="mb-2 text-sm leading-snug">
-        <span className="mr-1.5 tabular-nums text-muted-foreground">{pregunta.n}.</span>
+        <span className="mr-1.5 tabular-nums text-muted-foreground">{pregunta.numero}.</span>
         {pregunta.pregunta}
         {pregunta.critico && <span className="ml-2 text-[10px] tracking-wide text-amber-500">IMPRESCINDIBLE</span>}
         {loPusoDtgp && <span className="ml-2 text-[10px] tracking-wide text-sky-400">LO PUSIMOS NOSOTROS</span>}
@@ -739,6 +739,8 @@ function PreguntaPanel({ pregunta, valor, adjuntos, formId, loPusoDtgp, alRespon
           etiquetaAgregar={pregunta.etiquetaAgregar}
           filas={(valor as Fila[]) || []}
           alCambiar={(filas) => alResponder(pregunta.id, filas)}
+          columnaFoto={pregunta.fotos?.columna}
+          urlFoto={(g) => api.formularios.urlAdjunto(formId, g, true)}
         />
       ) : pregunta.tipo === 'ventana' ? (
         <div className="grid gap-2 text-xs">

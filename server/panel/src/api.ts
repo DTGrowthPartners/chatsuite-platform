@@ -212,6 +212,8 @@ export type PreguntaForm = {
   id: string;
   seccion: string;
   n: number;
+  /** Numero que se muestra, calculado sobre el conjunto filtrado. */
+  numero: number;
   tipo: string;
   pregunta: string;
   ayuda?: string;
@@ -229,6 +231,7 @@ export type PreguntaForm = {
   }[];
   etiquetaAgregar?: string;
   camposAdjunto?: { id: string; etiqueta: string; ancho?: number }[];
+  fotos?: { columna: string; columnaNombre: string; etiqueta: string; acepta: string };
 };
 
 export type SeccionForm = {
@@ -302,9 +305,11 @@ export const api = {
     marcarEntregado: (id: string) => enviar<{ ok: true }>('/api/formularios/entregado', { id }),
     borrar: (id: string) => enviar<{ ok: true }>('/api/formularios/borrar', { id }),
     urlBriefing: (id: string) => `${contexto.base}/api/formularios/briefing?id=${encodeURIComponent(id)}`,
-    urlAdjunto: (id: string, guardado: string) =>
+    // `enLinea` para las miniaturas: sin el, el navegador se descarga la foto en
+    // vez de pintarla, porque la ruta responde con content-disposition.
+    urlAdjunto: (id: string, guardado: string, enLinea = false) =>
       `${contexto.base}/api/formularios/adjunto?id=${encodeURIComponent(id)}`
-      + `&archivo=${encodeURIComponent(guardado)}`,
+      + `&archivo=${encodeURIComponent(guardado)}${enLinea ? '&enlinea=1' : ''}`,
   },
 
   bot: {
