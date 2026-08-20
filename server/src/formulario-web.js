@@ -140,6 +140,14 @@ export async function atender(req, res, url, leerCuerpo, leerBinario) {
       }
     }
 
+    case 'POST /api/form/adjunto/meta': {
+      // Lo que el cliente escribe sobre una foto concreta: de que producto es,
+      // su precio, su cantidad. Se guarda en la ficha del archivo.
+      const { pregunta, guardado, meta } = await leerCuerpo(req);
+      const ficha = await formularios.metaAdjunto(id, pregunta, guardado, meta);
+      return json(res, 200, { adjunto: ficha });
+    }
+
     case 'POST /api/form/adjunto/borrar': {
       const { pregunta, guardado } = await leerCuerpo(req);
       const lista = await formularios.quitarAdjunto(id, pregunta, guardado);

@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 
-import { api, type DetalleForm, type ResumenForm } from '@/api';
+import { api, type AdjuntoForm, type DetalleForm, type ResumenForm } from '@/api';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -16,6 +16,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
+import { ListaFilas, type Fila } from '@/componentes/ListaFilas';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
@@ -625,7 +626,7 @@ export function VistaFormulario({ id, alVolver }: { id: string; alVolver: () => 
 function PreguntaPanel({ pregunta, valor, adjuntos, formId, loPusoDtgp, alResponder }: {
   pregunta: DetalleForm['preguntas'][number];
   valor: unknown;
-  adjuntos: { nombre: string; guardado: string; bytes: number }[];
+  adjuntos: AdjuntoForm[];
   formId: string;
   loPusoDtgp: boolean;
   alResponder: (pregunta: string, valor: unknown, inmediato?: boolean) => void;
@@ -645,7 +646,7 @@ function PreguntaPanel({ pregunta, valor, adjuntos, formId, loPusoDtgp, alRespon
         adjuntos.length === 0
           ? <p className="text-xs text-muted-foreground">Sin adjuntos.</p>
           : (
-            <ul className="grid gap-1">
+            <ul className="grid gap-1.5">
               {adjuntos.map((a) => (
                 <li key={a.guardado}>
                   <a
@@ -656,6 +657,17 @@ function PreguntaPanel({ pregunta, valor, adjuntos, formId, loPusoDtgp, alRespon
                     {a.nombre}
                     <span className="text-muted-foreground">{Math.round(a.bytes / 1024)} KB</span>
                   </a>
+                  {/* Lo que el cliente escribió sobre el archivo: de qué producto
+                      es la foto, su precio, su cantidad. */}
+                  {pregunta.camposAdjunto && (
+                    <div className="mt-0.5 pl-5 text-xs text-muted-foreground">
+                      {pregunta.camposAdjunto
+                        .map((c) => [c.etiqueta, a.meta?.[c.id]] as const)
+                        .filter(([, v]) => v)
+                        .map(([e, v]) => `${e}: ${v}`)
+                        .join(' · ') || 'sin datos del producto'}
+                    </div>
+                  )}
                 </li>
               ))}
             </ul>
@@ -689,6 +701,12 @@ function PreguntaPanel({ pregunta, valor, adjuntos, formId, loPusoDtgp, alRespon
               </label>
             );
           })}
+          {((obj.notas as string[]) || []).filter(Boolean).map((n, i) => (
+            <div key={i} className="text-xs text-muted-foreground">+ {n}</div>
+          ))}
+          {typeof obj.nota === 'string' && obj.nota && (
+            <div className="text-xs text-muted-foreground">+ {obj.nota}</div>
+          )}
         </div>
       ) : pregunta.tipo === 'si_no' || pregunta.tipo === 'si_no_texto' ? (
         <div className="grid gap-2">
@@ -713,6 +731,15 @@ function PreguntaPanel({ pregunta, valor, adjuntos, formId, loPusoDtgp, alRespon
             />
           )}
         </div>
+      ) : pregunta.tipo === 'lista' ? (
+        <ListaFilas
+          id={`panel-${pregunta.id}`}
+          compacto
+          columnas={pregunta.columnas || []}
+          etiquetaAgregar={pregunta.etiquetaAgregar}
+          filas={(valor as Fila[]) || []}
+          alCambiar={(filas) => alResponder(pregunta.id, filas)}
+        />
       ) : pregunta.tipo === 'ventana' ? (
         <div className="grid gap-2 text-xs">
           <Select

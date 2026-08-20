@@ -214,6 +214,11 @@ const rutas = {
     json(res, 200, { avance: await formularios.guardarRespuesta(id, pregunta, valor, 'dtgp') });
   },
 
+  'PUT /api/formularios/adjunto-meta': async (req, res) => {
+    const { id, pregunta, guardado, meta } = await leerCuerpo(req);
+    json(res, 200, { adjunto: await formularios.metaAdjunto(id, pregunta, guardado, meta) });
+  },
+
   'POST /api/formularios/clave': async (req, res) => {
     const { id } = await leerCuerpo(req);
     json(res, 200, { clave: await formularios.nuevaClave(id) });

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Check, ChevronLeft, ChevronRight, CircleAlert, CloudUpload, Loader2, Moon, Paperclip,
-  PartyPopper, Save, Sun, X,
+  PartyPopper, Plus, Save, Sun, X,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -11,6 +11,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
+import { ListaFilas, type Columna, type Fila } from '@/componentes/ListaFilas';
 import { LockupDTGP } from '@/componentes/Marca';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -20,13 +21,14 @@ import { aplicarTema, LLAVE_TEMA, type Tema, temaInicial } from './tema-formular
 // ---------------------------------------------------------------- tipos
 
 type Opcion = { id: string; texto: string };
+type CampoAdjunto = { id: string; etiqueta: string; ancho?: number };
 
 type Pregunta = {
   id: string;
   seccion: string;
   n: number;
   tipo: 'texto' | 'largo' | 'si_no' | 'si_no_texto' | 'opciones' | 'multiple' | 'archivo'
-    | 'horario' | 'ventana';
+    | 'horario' | 'ventana' | 'lista';
   pregunta: string;
   ayuda?: string;
   critico?: boolean;
@@ -36,10 +38,17 @@ type Pregunta = {
   varios?: boolean;
   acepta?: string;
   filas?: number;
+  columnas?: Columna[];
+  etiquetaAgregar?: string;
+  camposAdjunto?: CampoAdjunto[];
+  notasVarias?: string;
 };
 
 type Seccion = { id: string; numero: number; titulo: string; descripcion: string; dtgp?: boolean };
-type Adjunto = { nombre: string; guardado: string; bytes: number; subido: string };
+type Adjunto = {
+  nombre: string; guardado: string; bytes: number; subido: string;
+  meta?: Record<string, string>;
+};
 type Avance = {
   total: number; hechas: number; criticas: number; criticasHechas: number;
   porcentaje: number; listo: boolean;
@@ -530,6 +539,7 @@ function Control({ pregunta, valor, adjuntos, alCambiar, alAdjuntar }: {
 
     case 'multiple': {
       const marcadas = (obj.opciones as string[]) || [];
+      const notas = (obj.notas as string[]) || [];
       return (
         <div className="grid gap-2">
           {pregunta.opciones?.map((o) => (
@@ -544,6 +554,44 @@ function Control({ pregunta, valor, adjuntos, alCambiar, alAdjuntar }: {
               {o.texto}
             </label>
           ))}
+
+          {/* Las que llevan `notasVarias` admiten tantos añadidos como haga
+              falta: con un solo campo, el segundo dato que se te ocurre no cabe
+              en ninguna parte. */}
+          {pregunta.notasVarias && (
+            <div className="mt-1 grid gap-2">
+              {notas.map((n, i) => (
+                <div key={i} className="flex gap-2">
+                  <Input
+                    placeholder={pregunta.notasVarias}
+                    value={n}
+                    onChange={(e) => {
+                      const copia = [...notas];
+                      copia[i] = e.target.value;
+                      alCambiar(pregunta.id, { ...obj, notas: copia });
+                    }}
+                  />
+                  <Button
+                    type="button" variant="ghost" size="icon"
+                    aria-label="Quitar este dato"
+                    onClick={() => alCambiar(
+                      pregunta.id,
+                      { ...obj, notas: notas.filter((_, j) => j !== i) },
+                      true,
+                    )}
+                  >
+                    <X className="size-4" />
+                  </Button>
+                </div>
+              ))}
+              <Button
+                type="button" variant="outline" size="sm" className="justify-self-start"
+                onClick={() => alCambiar(pregunta.id, { ...obj, notas: [...notas, ''] }, true)}
+              >
+                <Plus /> {pregunta.notasVarias}
+              </Button>
+            </div>
+          )}
           {nota}
         </div>
       );
@@ -575,6 +623,17 @@ function Control({ pregunta, valor, adjuntos, alCambiar, alAdjuntar }: {
             onChange={(e) => alCambiar(pregunta.id, { ...obj, mensaje: e.target.value })}
           />
         </div>
+      );
+
+    case 'lista':
+      return (
+        <ListaFilas
+          id={pregunta.id}
+          columnas={pregunta.columnas || []}
+          etiquetaAgregar={pregunta.etiquetaAgregar}
+          filas={(valor as Fila[]) || []}
+          alCambiar={(filas) => alCambiar(pregunta.id, filas)}
+        />
       );
 
     case 'ventana':
@@ -695,6 +754,24 @@ function Adjuntos({ pregunta, adjuntos, alAdjuntar }: {
     if (entrada.current) entrada.current.value = '';
   }
 
+  // Mismo guardado con pausa que el resto del formulario, pero por archivo y
+  // por campo: escribir el precio de una foto no puede cancelar el guardado
+  // pendiente del producto de otra.
+  const temporizadores = useRef<Record<string, number>>({});
+  function escribirMeta(a: Adjunto, campo: string, valor: string) {
+    const meta = { ...(a.meta || {}), [campo]: valor };
+    alAdjuntar(adjuntos.map((x) => (x.guardado === a.guardado ? { ...x, meta } : x)));
+
+    const llave = `${a.guardado}:${campo}`;
+    window.clearTimeout(temporizadores.current[llave]);
+    temporizadores.current[llave] = window.setTimeout(() => {
+      pedir('/api/form/adjunto/meta', {
+        method: 'POST',
+        body: JSON.stringify({ pregunta: pregunta.id, guardado: a.guardado, meta }),
+      }).catch((e) => toast.error(`No se pudo guardar: ${(e as Error).message}`));
+    }, 900);
+  }
+
   async function quitar(a: Adjunto) {
     try {
       const d = await pedir<{ adjuntos: Adjunto[] }>('/api/form/adjunto/borrar', {
@@ -710,19 +787,46 @@ function Adjuntos({ pregunta, adjuntos, alAdjuntar }: {
   return (
     <div className="grid gap-3">
       {adjuntos.length > 0 && (
-        <ul className="grid gap-1.5">
+        <ul className="grid gap-2">
           {adjuntos.map((a) => (
-            <li key={a.guardado} className="flex items-center gap-2 rounded-lg border bg-background px-3 py-2 text-sm">
-              <Paperclip className="size-3.5 shrink-0 text-muted-foreground" />
-              <span className="min-w-0 flex-1 truncate">{a.nombre}</span>
-              <span className="shrink-0 text-xs text-muted-foreground">{KB(a.bytes)}</span>
-              <button
-                type="button" onClick={() => quitar(a)}
-                className="shrink-0 rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
-                aria-label={`Quitar ${a.nombre}`}
-              >
-                <X className="size-3.5" />
-              </button>
+            <li key={a.guardado} className="grid gap-2 rounded-lg border bg-background px-3 py-2">
+              <div className="flex items-center gap-2 text-sm">
+                <Paperclip className="size-3.5 shrink-0 text-muted-foreground" />
+                <span className="min-w-0 flex-1 truncate">{a.nombre}</span>
+                <span className="shrink-0 text-xs text-muted-foreground">{KB(a.bytes)}</span>
+                <button
+                  type="button" onClick={() => quitar(a)}
+                  className="shrink-0 rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
+                  aria-label={`Quitar ${a.nombre}`}
+                >
+                  <X className="size-3.5" />
+                </button>
+              </div>
+
+              {/* Los datos del archivo, si la pregunta los pide. Sin esto, un ZIP
+                  de cien fotos llamadas IMG_0423 no le dice a nadie que producto
+                  es cual, y alguien tiene que adivinarlo a mano despues. */}
+              {pregunta.camposAdjunto && (
+                <div className="grid gap-2 border-t pt-2 sm:grid-cols-4">
+                  {pregunta.camposAdjunto.map((c) => (
+                    <div
+                      key={c.id}
+                      className="grid gap-1"
+                      style={{ gridColumn: `span ${Math.min(4, c.ancho ?? 1)} / span ${Math.min(4, c.ancho ?? 1)}` }}
+                    >
+                      <label className="text-[11px] text-muted-foreground" htmlFor={`${a.guardado}-${c.id}`}>
+                        {c.etiqueta}
+                      </label>
+                      <Input
+                        id={`${a.guardado}-${c.id}`}
+                        className="h-8 text-sm"
+                        value={a.meta?.[c.id] ?? ''}
+                        onChange={(e) => escribirMeta(a, c.id, e.target.value)}
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
             </li>
           ))}
         </ul>

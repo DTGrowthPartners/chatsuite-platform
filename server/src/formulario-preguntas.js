@@ -96,10 +96,18 @@ export const PREGUNTAS = [
 
   // ---- 2. Catalogo ----
   {
-    id: 'lista_productos', seccion: 'catalogo', n: 8, critico: true, tipo: 'largo',
-    pregunta: 'Lista de productos con nombre, precio al detal, tallas y colores',
-    ayuda: 'Puedes escribirla aqui o adjuntarla abajo. Si un precio esta por definir, '
-      + 'marcalo: el bot no inventa precios.',
+    id: 'lista_productos', seccion: 'catalogo', n: 8, critico: true, tipo: 'lista',
+    pregunta: 'Lista de productos',
+    ayuda: 'Agrega uno por fila. Si tienes muchos, subelos en el archivo de abajo y aqui '
+      + 'deja solo los que mas vendes. Si un precio esta por definir, escribelo: el bot '
+      + 'no inventa precios.',
+    etiquetaAgregar: 'Agregar producto',
+    columnas: [
+      { id: 'nombre', etiqueta: 'Producto', ancho: 2 },
+      { id: 'precio', etiqueta: 'Precio al detal' },
+      { id: 'tallas', etiqueta: 'Tallas' },
+      { id: 'colores', etiqueta: 'Colores' },
+    ],
   },
   {
     id: 'archivo_catalogo', seccion: 'catalogo', n: 8, critico: true, tipo: 'archivo',
@@ -111,9 +119,18 @@ export const PREGUNTAS = [
   {
     id: 'fotos_productos', seccion: 'catalogo', n: 9, critico: true, tipo: 'archivo',
     pregunta: 'Fotos de los productos',
-    ayuda: 'Buena luz, minimo una por producto. Puedes subir un ZIP.',
+    ayuda: 'Buena luz, minimo una por producto. Al subir cada foto dinos de que producto es: '
+      + 'sin eso no sabemos que foto mandar cuando un cliente pregunte por algo.',
     varios: true,
     acepta: '.zip,.jpg,.jpeg,.png,.webp,.heic',
+    // Cada archivo lleva sus propios datos. Un ZIP con cien fotos llamadas
+    // IMG_0423 no le dice nada a nadie, y adivinar el producto por el nombre del
+    // archivo es justo el trabajo manual que este formulario venia a quitar.
+    camposAdjunto: [
+      { id: 'producto', etiqueta: 'De que producto es', ancho: 2 },
+      { id: 'precio', etiqueta: 'Precio' },
+      { id: 'cantidad', etiqueta: 'Cantidad disponible' },
+    ],
   },
   {
     id: 'logo', seccion: 'catalogo', n: 9, critico: true, tipo: 'archivo',
@@ -130,9 +147,18 @@ export const PREGUNTAS = [
     ],
   },
   {
-    id: 'no_manejan', seccion: 'catalogo', n: 11, tipo: 'largo',
+    id: 'no_manejan', seccion: 'catalogo', n: 11, tipo: 'lista',
     pregunta: 'Que les preguntan que NO manejan, y que debe responder el bot',
-    ayuda: 'Ejemplo: "conjuntos deportivos?" → "no manejamos, pero tenemos...".',
+    ayuda: 'Una fila por caso. El bot usa tu respuesta tal cual, asi que escribela como '
+      + 'se la dirias al cliente.',
+    etiquetaAgregar: 'Agregar caso',
+    columnas: [
+      { id: 'pregunta', etiqueta: 'Lo que preguntan', ancho: 2, ejemplo: 'conjuntos deportivos?' },
+      {
+        id: 'respuesta', etiqueta: 'Lo que responde el bot', ancho: 3, largo: true,
+        ejemplo: 'no manejamos conjuntos, pero tenemos camisetas y pantalonetas',
+      },
+    ],
   },
   {
     id: 'catalogo_pdf', seccion: 'catalogo', n: 12, tipo: 'si_no',
@@ -174,7 +200,9 @@ export const PREGUNTAS = [
   },
   {
     id: 'archivo_zonas', seccion: 'entregas', n: 17, tipo: 'archivo',
-    pregunta: 'Archivo con la tabla de zonas',
+    pregunta: 'Archivo con las tarifas de DOMICILIO LOCAL',
+    ayuda: 'Solo los repartos dentro de tu ciudad, con su zona o barrio y lo que cobras '
+      + 'por cada uno. Los envios a otras ciudades van en la pregunta 18.',
     acepta: '.xlsx,.xls,.csv,.json,.txt,.pdf',
     varios: true,
   },
@@ -182,6 +210,14 @@ export const PREGUNTAS = [
     id: 'envios_nacionales', seccion: 'entregas', n: 18, critico: true, tipo: 'largo',
     pregunta: 'Envios nacionales: transportadora, costo, tiempo y forma de pago',
     ayuda: 'Se paga contra entrega o anticipado?',
+  },
+  {
+    id: 'archivo_envios', seccion: 'entregas', n: 18, tipo: 'archivo',
+    pregunta: 'Archivo con las tarifas de ENVIO NACIONAL',
+    ayuda: 'Lo que cobra la transportadora a otras ciudades. Si es tarifa unica no hace '
+      + 'falta archivo: escribelo arriba y ya.',
+    acepta: '.xlsx,.xls,.csv,.json,.txt,.pdf',
+    varios: true,
   },
   {
     id: 'tiempos_entrega', seccion: 'entregas', n: 19, tipo: 'largo',
@@ -195,9 +231,18 @@ export const PREGUNTAS = [
 
   // ---- 5. Pagos ----
   {
-    id: 'metodos_pago', seccion: 'pagos', n: 21, critico: true, tipo: 'largo',
-    pregunta: 'Metodos de pago, con los datos exactos que se le dan al cliente',
-    ayuda: 'Nequi / Daviplata / cuenta bancaria + numero + titular. El bot los manda literal.',
+    id: 'metodos_pago', seccion: 'pagos', n: 21, critico: true, tipo: 'lista',
+    pregunta: 'Cuentas donde te pueden pagar',
+    ayuda: 'Una fila por cuenta. El bot manda estos datos LITERAL al cliente, asi que '
+      + 'revisa el numero con calma: un digito mal es una plata que no llega.',
+    etiquetaAgregar: 'Agregar cuenta',
+    columnas: [
+      { id: 'entidad', etiqueta: 'Banco o billetera', ejemplo: 'Nequi, Bancolombia…' },
+      { id: 'tipo', etiqueta: 'Tipo de cuenta', ejemplo: 'Ahorros, corriente…' },
+      { id: 'numero', etiqueta: 'Numero', ancho: 2 },
+      { id: 'titular', etiqueta: 'A nombre de', ancho: 2 },
+      { id: 'nit', etiqueta: 'NIT o cedula (opcional)', ancho: 2, opcional: true },
+    ],
   },
   {
     id: 'contra_entrega', seccion: 'pagos', n: 22, tipo: 'largo',
@@ -228,7 +273,7 @@ export const PREGUNTAS = [
       { id: 'medio_pago', texto: 'Medio de pago' },
       { id: 'correo', texto: 'Correo electronico' },
     ],
-    conNota: 'Otro dato que haga falta',
+    notasVarias: 'Otro dato que haga falta',
   },
   {
     id: 'quien_cierra', seccion: 'cierre', n: 25, critico: true, tipo: 'opciones',
@@ -285,10 +330,21 @@ export const PREGUNTAS = [
     ],
   },
   {
-    id: 'tono', seccion: 'persona', n: 28, critico: true, tipo: 'largo',
-    pregunta: 'Que tono usan?',
-    ayuda: 'Formal o relajado, modismos locales si o no. Lo ideal: pega abajo 3 a 5 '
-      + 'conversaciones reales de WhatsApp donde vendieron bien. De ahi sacamos la voz.',
+    id: 'tono', seccion: 'persona', n: 28, critico: true, tipo: 'multiple',
+    pregunta: 'Que tono usan con los clientes?',
+    ayuda: 'Marca todo lo que aplique. Y si puedes, sube abajo 3 a 5 conversaciones reales '
+      + 'donde vendieron bien: de ahi sale la voz mejor que de cualquier descripcion.',
+    opciones: [
+      { id: 'cercano', texto: 'Cercano y relajado, como un amigo' },
+      { id: 'formal', texto: 'Formal y profesional' },
+      { id: 'directo', texto: 'Directo y al grano, sin rodeos' },
+      { id: 'calido', texto: 'Calido, con mucho trato personal' },
+      { id: 'tecnico', texto: 'Tecnico, con detalle del producto' },
+      { id: 'modismos', texto: 'Con modismos y expresiones locales' },
+      { id: 'neutro', texto: 'Español neutro, sin modismos' },
+      { id: 'paciente', texto: 'Paciente, explicando las veces que haga falta' },
+    ],
+    conNota: 'Algo mas sobre como hablan',
   },
   {
     id: 'conversaciones', seccion: 'persona', n: 28, tipo: 'archivo',
@@ -365,10 +421,15 @@ export const PREGUNTAS = [
 
   // ---- 10. Objeciones ----
   {
-    id: 'objeciones', seccion: 'objeciones', n: 37, tipo: 'largo',
-    pregunta: 'Las 5 preguntas u objeciones mas repetidas, y como las responden hoy',
-    ayuda: 'Texto real, el que usan de verdad.',
-    filas: 8,
+    id: 'objeciones', seccion: 'objeciones', n: 37, tipo: 'lista',
+    pregunta: 'Las preguntas u objeciones mas repetidas, y como las responden hoy',
+    ayuda: 'Texto real, el que usan de verdad, no el ideal. Con cinco filas ya se nota '
+      + 'muchisimo en las respuestas del bot.',
+    etiquetaAgregar: 'Agregar objecion',
+    columnas: [
+      { id: 'pregunta', etiqueta: 'Lo que dice el cliente', ancho: 2, ejemplo: 'esta muy caro' },
+      { id: 'respuesta', etiqueta: 'Lo que responden hoy', ancho: 3, largo: true },
+    ],
   },
   {
     id: 'devoluciones', seccion: 'objeciones', n: 38, tipo: 'largo',
@@ -436,7 +497,10 @@ export function preguntasDe(tipoBot) {
 /** Una respuesta cuenta como dada si tiene algo util dentro. */
 export function respondida(pregunta, valor) {
   if (valor === undefined || valor === null) return false;
-  if (Array.isArray(valor)) return valor.length > 0;
+  // Una lista con filas vacias no es una respuesta. El control siempre deja una
+  // fila en blanco a la vista para invitar a escribir, asi que sin esto toda
+  // pregunta de tipo lista contaria como contestada nada mas abrirla.
+  if (Array.isArray(valor)) return valor.some((v) => respondida(pregunta, v));
   if (typeof valor === 'object') {
     // si_no_texto y las que llevan nota: basta con la parte principal.
     if (valor.opcion !== undefined) return valor.opcion !== null && valor.opcion !== '';

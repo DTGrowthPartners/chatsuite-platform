@@ -276,6 +276,32 @@ export function registrarAdjunto(id, preguntaId, archivo) {
   });
 }
 
+/**
+ * Los datos que el cliente escribe sobre un archivo concreto: de que producto es
+ * la foto, su precio, su cantidad.
+ *
+ * Van sobre la ficha del adjunto y no en `respuestas` porque pertenecen al
+ * archivo: si lo borra, se van con el. Guardarlos aparte dejaria datos huerfanos
+ * apuntando a fotos que ya no existen.
+ */
+export function metaAdjunto(id, preguntaId, guardado, meta) {
+  const pregunta = PREGUNTAS_POR_ID.get(preguntaId);
+  if (!pregunta) throw new Error(`pregunta desconocida: ${preguntaId}`);
+  const permitidos = new Set((pregunta.camposAdjunto || []).map((c) => c.id));
+  if (!permitidos.size) throw new Error('esa pregunta no lleva datos por archivo');
+
+  return actualizar(id, (f) => {
+    const ficha = (f.adjuntos[preguntaId] || []).find((a) => a.guardado === guardado);
+    if (!ficha) throw new Error('ese adjunto no existe');
+    ficha.meta = Object.fromEntries(
+      Object.entries(meta || {})
+        .filter(([k]) => permitidos.has(k))
+        .map(([k, v]) => [k, String(v ?? '').slice(0, 300)]),
+    );
+    return ficha;
+  });
+}
+
 export function quitarAdjunto(id, preguntaId, guardado) {
   return actualizar(id, (f) => {
     const lista = f.adjuntos[preguntaId] || [];
@@ -460,7 +486,17 @@ export function briefing(form) {
       out.push(...formatearValor(pregunta, valor));
       if (archivos.length) {
         out.push('', 'Adjuntos:');
-        out.push(...archivos.map((a) => `- \`${a.nombre}\` (${Math.round(a.bytes / 1024)} KB)`));
+        out.push(...archivos.map((a) => {
+          // Lo que el cliente escribio sobre el archivo va en la misma linea:
+          // el nombre del fichero por si solo casi nunca dice de que es.
+          const datos = (pregunta.camposAdjunto || [])
+            .map((c) => [c.etiqueta, texto(a.meta?.[c.id])])
+            .filter(([, v]) => v)
+            .map(([e, v]) => `${e}: ${v}`)
+            .join(' · ');
+          const peso = `${Math.round(a.bytes / 1024)} KB`;
+          return `- \`${a.nombre}\` (${peso})${datos ? ` — ${datos}` : ''}`;
+        }));
       }
       out.push('');
     }
@@ -470,6 +506,33 @@ export function briefing(form) {
 
 function formatearValor(pregunta, valor) {
   if (valor === undefined || valor === null) return [];
+  if (pregunta.tipo === 'lista') {
+    const filas = (Array.isArray(valor) ? valor : [])
+      .filter((f) => Object.values(f || {}).some((v) => texto(v)));
+    if (!filas.length) return [];
+    const cols = pregunta.columnas || [];
+
+    // Con una sola columna una tabla es ruido; con varias, una tabla markdown se
+    // lee de un vistazo y sobrevive al copiar y pegar.
+    if (cols.length === 1) return filas.map((f) => `- ${texto(f[cols[0].id])}`);
+
+    // Las columnas de texto largo revientan cualquier tabla, asi que esas listas
+    // van como bloques.
+    if (cols.some((c) => c.largo)) {
+      return filas.flatMap((f) => [
+        ...cols.map((c) => (texto(f[c.id]) ? `- **${c.etiqueta}:** ${texto(f[c.id])}` : null))
+          .filter(Boolean),
+        '',
+      ]).slice(0, -1);
+    }
+
+    const escapar = (v) => texto(v).replace(/\|/g, '\\|');
+    return [
+      `| ${cols.map((c) => c.etiqueta).join(' | ')} |`,
+      `| ${cols.map(() => '---').join(' | ')} |`,
+      ...filas.map((f) => `| ${cols.map((c) => escapar(f[c.id]) || '—').join(' | ')} |`),
+    ];
+  }
   if (pregunta.tipo === 'ventana') {
     const hh = (h) => `${String(h).padStart(2, '0')}:00`;
     if (valor.modo === 'siempre') return ['Todo el dia, todos los dias'];
@@ -493,6 +556,7 @@ function formatearValor(pregunta, valor) {
       .map((o) => pregunta.opciones?.find((x) => x.id === o)?.texto || o);
     return [
       ...etiquetas.map((e) => `- ${e}`),
+      ...(valor.notas || []).map((n) => texto(n)).filter(Boolean).map((n) => `- ${n}`),
       texto(valor.nota) && `- ${texto(valor.nota)}`,
     ].filter(Boolean);
   }

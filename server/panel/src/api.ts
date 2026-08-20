@@ -218,17 +218,27 @@ export type PreguntaForm = {
   critico?: boolean;
   opciones?: { id: string; texto: string }[];
   conNota?: string;
+  notasVarias?: string;
   etiquetaTexto?: string;
   varios?: boolean;
   acepta?: string;
   filas?: number;
+  columnas?: {
+    id: string; etiqueta: string; ancho?: number; largo?: boolean;
+    ejemplo?: string; opcional?: boolean;
+  }[];
+  etiquetaAgregar?: string;
+  camposAdjunto?: { id: string; etiqueta: string; ancho?: number }[];
 };
 
 export type SeccionForm = {
   id: string; numero: number; titulo: string; descripcion: string; dtgp?: boolean;
 };
 
-export type AdjuntoForm = { nombre: string; guardado: string; bytes: number; subido: string };
+export type AdjuntoForm = {
+  nombre: string; guardado: string; bytes: number; subido: string;
+  meta?: Record<string, string>;
+};
 
 export type DetalleForm = {
   formulario: ResumenForm & {
