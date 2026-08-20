@@ -18,6 +18,18 @@ export default function App() {
       .catch(() => setAutenticado(false));
   }, []);
 
+  // La direccion acompana a lo que se ve: /login sin sesion, raiz con ella. Es
+  // replaceState y no push a proposito: el boton atras no debe poder devolverte
+  // a una pantalla que ya no corresponde. El servidor devuelve el index para
+  // cualquier ruta sin extension, asi que recargar en /login funciona.
+  useEffect(() => {
+    if (autenticado === null) return;
+    const destino = autenticado ? '/' : '/login';
+    if (window.location.pathname !== destino) {
+      window.history.replaceState(null, '', destino + window.location.search);
+    }
+  }, [autenticado]);
+
   const salir = useCallback(async () => {
     await api.salir().catch(() => {});
     setAutenticado(false);

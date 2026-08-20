@@ -1,0 +1,338 @@
+/* Pantalla de acceso del panel.
+ *
+ * Va en CSS plano y no en utilidades de Tailwind a proposito: son medidas
+ * exactas de un diseno cerrado, y traducirlas a clases las volveria imposibles
+ * de leer. Todo cuelga de .lg-* para no rozar el tema de shadcn que usa el
+ * resto del panel.
+ */
+
+/* El panel corre en tema oscuro violaceo; esta vista es negro puro. Se marca el
+ * body porque el fondo tiene que llegar hasta el borde en el rebote de scroll
+ * de iOS, y un contenedor no alcanza. */
+body.lg-negro {
+  background: #000000 !important;
+  color: #ffffff;
+  overflow-x: hidden;
+}
+
+.lg-root {
+  --bg: #000000;
+  --text: #ffffff;
+  --muted: #9a9a9a;
+
+  /* Los dos tonos de marca, los mismos que usa el resto del panel. */
+  --marca: #007ffc;
+  --marca-2: #26bdf0;
+  --marca-oscura: #0062c9;
+
+  --logo-h: 58px;
+  --btn: 13.5px;
+  --campo-h: 46px;
+  --badge: 12.5px;
+  --campo-max: 380px;
+  --hueco: 26px;
+
+  font-family: "Inter Variable", "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  color: var(--text);
+}
+
+/* ---------- capa 4: grano ---------- */
+.lg-grain {
+  position: fixed;
+  inset: -20%;
+  z-index: 100;
+  pointer-events: none;
+  opacity: 0.05;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* ---------- capa 2: fondo ---------- */
+.lg-fondo {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 0;
+  pointer-events: none;
+  background: #000;
+  animation: lg-fondo-in 1.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.lg-fondo.is-in { animation: none; opacity: 1; transform: none; }
+@keyframes lg-fondo-in {
+  0%   { opacity: 0; transform: scale(1.06); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+/* El diseno no lleva overlay y el fondo se ve entero por los bordes. Pero la
+ * cresta clara del video cruza justo por el centro, que es donde vive el
+ * acceso: un halo oscuro detras del bloque asegura la lectura sin importar el
+ * fotograma que toque. */
+.lg-velo {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: radial-gradient(62% 58% at 50% 50%, rgba(0, 0, 0, 0.74) 0%, rgba(0, 0, 0, 0.38) 56%, rgba(0, 0, 0, 0) 100%);
+}
+
+/* ---------- capa 3: pagina ---------- */
+.lg-page {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding: 40px 24px;
+  padding-bottom: max(40px, env(safe-area-inset-bottom));
+}
+
+.lg-copy {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  width: 100%;
+  max-width: var(--campo-max);
+}
+
+/* ---------- distintivo ---------- */
+.lg-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 24px;
+  padding: 9px 15px;
+  border: 0;
+  border-radius: 5px;
+  background: linear-gradient(90deg, #7d7d7d 0%, #2a2a2a 52%, #0a0a0a 100%);
+  color: #f2f2f2;
+  font-size: var(--badge);
+  font-weight: 400;
+  letter-spacing: -0.01em;
+}
+.lg-star {
+  width: 18px;
+  height: 20px;
+  flex: none;
+  filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.45));
+  animation: lg-star 0.9s cubic-bezier(0.16, 1, 0.3, 1) 0.16s both;
+}
+
+/* ---------- marca ---------- */
+.lg-logo { display: block; margin-bottom: var(--hueco); }
+.lg-logo img {
+  height: var(--logo-h);
+  width: auto;
+  display: block;
+  /* El lockup viene blanco sobre transparente: no necesita fondo ni filtro. */
+}
+
+/* ---------- formulario ---------- */
+.lg-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+.lg-campo {
+  width: 100%;
+  height: var(--campo-h);
+  padding: 0 14px;
+  border-radius: 7px;
+  border: 1px solid rgba(0, 127, 252, 0.42);
+  background: linear-gradient(135deg, rgba(0, 127, 252, 0.14), rgba(0, 0, 0, 0.55) 48%, rgba(38, 189, 240, 0.12));
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  color: #fff;
+  caret-color: var(--marca-2);
+  font: inherit;
+  font-size: var(--btn);
+  letter-spacing: -0.01em;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease, background 0.3s ease;
+}
+.lg-campo::placeholder { color: rgba(150, 205, 255, 0.62); }
+.lg-campo:hover { border-color: rgba(0, 127, 252, 0.62); }
+.lg-campo:focus {
+  outline: none;
+  border-color: var(--marca);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16), 0 0 22px rgba(0, 127, 252, 0.38);
+}
+/* El autorrelleno de Chrome pinta el campo de amarillo palido y se lleva por
+ * delante el cristal. El inset gigante es el unico truco que lo tapa. */
+.lg-campo:-webkit-autofill,
+.lg-campo:-webkit-autofill:hover,
+.lg-campo:-webkit-autofill:focus {
+  -webkit-text-fill-color: #fff;
+  -webkit-box-shadow: inset 0 0 0 1000px rgba(6, 22, 40, 0.94);
+  caret-color: var(--marca-2);
+}
+
+/* El ojo va dentro del campo, asi que el texto necesita apartarse o pasa por
+ * debajo del icono al escribir una clave larga. */
+.lg-caja { position: relative; width: 100%; }
+.lg-caja .lg-campo { padding-right: 44px; }
+
+.lg-ojo {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  transform: translateY(-50%);
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: rgba(150, 205, 255, 0.75);
+  cursor: pointer;
+  transition: color 0.25s ease, background 0.25s ease;
+}
+.lg-ojo:hover { color: #fff; background: rgba(0, 127, 252, 0.18); }
+.lg-ojo:focus-visible { outline: 2px solid rgba(150, 215, 255, 0.9); outline-offset: 1px; }
+.lg-ojo svg { width: 17px; height: 17px; }
+
+/* ---------- boton ---------- */
+.lg-btn {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  width: 100%;
+  height: var(--campo-h);
+  margin-top: 2px;
+  border-radius: 7px;
+  border: 1px solid #fff;
+  background: linear-gradient(180deg, #ffffff 0%, #e7e7e7 48%, #cfcfcf 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.95);
+  color: #111;
+  font-size: var(--btn);
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.35s ease, border-color 0.35s ease, box-shadow 0.35s ease, filter 0.35s ease;
+}
+.lg-btn::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(115deg, transparent 20%, rgba(255, 255, 255, 0.45) 48%, transparent 76%);
+  transform: translateX(-130%);
+  transition: transform 0.65s ease;
+  pointer-events: none;
+}
+.lg-btn:hover:not(:disabled)::after { transform: translateX(130%); }
+.lg-btn:hover:not(:disabled) {
+  border-color: #f2f6ff;
+  background: linear-gradient(180deg, #ffffff 0%, #f3f6ff 42%, #d5def2 100%);
+  box-shadow: inset 0 1px 0 #fff, 0 0 26px rgba(186, 208, 255, 0.4), 0 8px 18px rgba(255, 255, 255, 0.14);
+}
+.lg-btn:disabled { cursor: progress; filter: saturate(0.6) brightness(0.85); }
+.lg-btn:focus-visible, .lg-campo:focus-visible { outline: 2px solid rgba(150, 215, 255, 0.9); outline-offset: 2px; }
+
+.lg-error {
+  margin-top: 4px;
+  color: #ffb4b4;
+  font-size: 12.5px;
+  letter-spacing: -0.01em;
+  text-align: center;
+}
+
+.lg-spinner {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid rgba(17, 17, 17, 0.25);
+  border-top-color: #111;
+  animation: lg-giro 0.7s linear infinite;
+}
+@keyframes lg-giro { to { transform: rotate(360deg); } }
+
+/* ---------- entradas ---------- */
+.lg-in {
+  opacity: 1;
+  animation-duration: 1.05s;
+  animation-fill-mode: both;
+  animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  animation-delay: var(--d, 0.08s);
+}
+.lg-in--scale { animation-name: lg-scale; }
+.lg-in--pop   { animation-name: lg-pop; }
+.lg-in--btn   { animation-name: lg-btn-in; }
+.lg-in.is-in  { animation: none; opacity: 1; transform: none; clip-path: none; filter: none; }
+
+@keyframes lg-scale  { 0% { opacity: 0; transform: scale(0.84); } 100% { opacity: 1; transform: scale(1); } }
+@keyframes lg-pop    { 0% { opacity: 0; transform: scale(0.9); } 70% { opacity: 1; transform: scale(1.03); } 100% { opacity: 1; transform: scale(1); } }
+@keyframes lg-btn-in { 0% { opacity: 0; transform: translateY(18px) scale(0.94); } 100% { opacity: 1; transform: translateY(0) scale(1); } }
+@keyframes lg-star   { 0% { opacity: 0; transform: scale(0.2) rotate(-50deg); } 65% { opacity: 1; transform: scale(1.2) rotate(8deg); } 100% { opacity: 1; transform: scale(1) rotate(0deg); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .lg-root *, .lg-root *::before, .lg-root *::after, .lg-fondo {
+    transition: none !important;
+    animation: none !important;
+  }
+  .lg-in, .lg-fondo, .lg-star { opacity: 1; transform: none; filter: none; }
+}
+
+/* ================= puntos de ruptura ================= */
+
+@media (min-width: 1600px) {
+  .lg-root {
+    --logo-h: 66px; --btn: 15px; --campo-h: 50px; --badge: 13.5px;
+    --campo-max: 420px; --hueco: 30px;
+  }
+  .lg-badge { margin-bottom: 28px; }
+  .lg-form { gap: 12px; }
+}
+
+@media (min-width: 1920px) {
+  .lg-root {
+    --logo-h: 76px; --btn: 16px; --campo-h: 54px; --badge: 14.5px;
+    --campo-max: 460px; --hueco: 34px;
+  }
+  .lg-badge { padding: 10px 15px; }
+}
+
+@media (min-width: 2560px) {
+  .lg-root { --logo-h: 88px; --campo-max: 500px; }
+}
+
+@media (min-width: 901px) and (max-height: 720px) {
+  .lg-root { --logo-h: 48px; --campo-h: 40px; --hueco: 20px; }
+  .lg-badge { margin-bottom: 18px; }
+}
+
+/* Escritorio: un solo cuadro, sin scroll. */
+@media (min-width: 901px) {
+  body.lg-negro { height: 100%; overflow: hidden; }
+  .lg-page { height: 100vh; height: 100dvh; overflow: hidden; }
+}
+
+/* ---------- telefono ---------- */
+@media (max-width: 900px) {
+  body.lg-negro { height: auto; overflow-y: auto; }
+  .lg-root {
+    --logo-h: 50px; --btn: 15px; --campo-h: 50px; --badge: 13px;
+    --campo-max: 100%; --hueco: 24px;
+  }
+  .lg-page {
+    padding: 32px 22px;
+    padding-top: max(32px, env(safe-area-inset-top));
+    padding-left: max(22px, env(safe-area-inset-left));
+    padding-right: max(22px, env(safe-area-inset-right));
+  }
+}
+
+@media (max-width: 560px) {
+  .lg-root { --logo-h: 44px; }
+}

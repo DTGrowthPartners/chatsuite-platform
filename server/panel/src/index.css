@@ -127,6 +127,58 @@
   html {
     @apply font-sans;
     }
+
+  /* ------------------------------------------------------------------
+     Barras de scroll
+     ------------------------------------------------------------------
+     La del sistema es gris de widget y rompe la pieza en cuanto aparece,
+     sobre todo en oscuro, donde entra una franja clara en un panel de
+     tinta. Aqui se pintan con los tokens del tema, asi que siguen al modo
+     claro y al oscuro sin una sola regla duplicada.
+
+     Van los dos motores: `scrollbar-*` es lo que entiende Firefox, y
+     `::-webkit-scrollbar` lo de Chrome y Safari. Poner solo uno deja la
+     mitad de los navegadores con la barra del sistema.
+
+     `color-mix` con el borde del tema y no un gris fijo: asi el pulgar
+     tiene el mismo peso que el resto de las lineas de la interfaz. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in oklch, var(--border) 85%, var(--foreground))
+      transparent;
+    }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+    }
+  /* Transparente y no un color propio: una barra vertical y una horizontal
+     que se cruzan dejaban un cuadrado opaco en la esquina. */
+  ::-webkit-scrollbar-track,
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+    }
+  ::-webkit-scrollbar-thumb {
+    background-color: color-mix(in oklch, var(--border) 85%, var(--foreground));
+    border-radius: 999px;
+    /* El borde transparente con background-clip es lo que adelgaza el pulgar
+       sin estrechar la zona de agarre: el area sensible al raton sigue siendo
+       de 10px aunque se vea de 6. */
+    border: 2px solid transparent;
+    background-clip: content-box;
+    }
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: color-mix(in oklch, var(--border) 55%, var(--foreground));
+    }
+
+  /* El lockup de DTGP es un PNG blanco sobre transparente: sobre fondo claro
+     desaparece. Se invierte por CSS y no con las utilidades `invert` /
+     `dark:invert-0` de Tailwind porque las dos escriben la MISMA variable de
+     filtro, y cual gana depende del orden en la hoja generada, no del orden en
+     el atributo class: en oscuro se colaba el invert y el logo quedaba negro
+     sobre negro. Con dos reglas propias no hay ambiguedad. */
+  .lockup-dtgp { filter: invert(1); }
+  .dark .lockup-dtgp { filter: none; }
 }
 /* ==========================================================================
    Identidad DTGP
