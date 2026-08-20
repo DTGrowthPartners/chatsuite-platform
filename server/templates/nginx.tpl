@@ -24,6 +24,27 @@ server {
     # hasta la siguiente emision.
     include /srv/chatsuite/{{SLUG}}/nginx-extra/*.conf;
 
+
+    # La marca del cliente entra por bind-mount y se puede regenerar en caliente:
+    # cambiar el logo, corregir el color. Rails sirve estos estaticos con
+    # `max-age` de UN AÑO y sin ETag, asi que el navegador se quedaba con la
+    # version vieja para siempre — el archivo en disco cambiaba y en pantalla no
+    # pasaba nada, que parece que el cambio no se aplico.
+    #
+    # Con revalidacion el navegador pregunta cada vez y Rails contesta 304 si no
+    # cambio, asi que no cuesta ancho de banda: solo un viaje condicional.
+    location /brand-assets/ {
+        proxy_pass http://127.0.0.1:{{PUERTO}};
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        proxy_hide_header Cache-Control;
+        add_header Cache-Control "public, max-age=0, must-revalidate" always;
+    }
+
     location / {
         proxy_pass http://127.0.0.1:{{PUERTO}};
         proxy_http_version 1.1;

@@ -126,12 +126,74 @@ def aclarar(rgb, factor=0.25):
     return (int(r * 255), int(g * 255), int(b * 255))
 
 
-def lockup(iso, nombre, color_texto, alto_objetivo=None):
+# Un logo hasta aqui de ancho se toma por isotipo; mas ancho, por lockup. El
+# corte esta en 2.2 porque un simbolo rara vez pasa de 2:1 y un lockup rara vez
+# baja de 2.5:1, asi que la franja de duda es estrecha. Se puede forzar con
+# --lockup o --isotipo.
+PROPORCION_LOCKUP = 2.2
+
+
+def es_lockup(img):
+    return img.width / img.height > PROPORCION_LOCKUP
+
+
+def simbolo_de(img, minimo_rel=0.055, tope_rel=0.6):
+    """Recorta el simbolo de un lockup: lo que hay antes del primer hueco ancho.
+
+    Un lockup es simbolo, aire y palabras. Ese aire es la unica pista fiable de
+    donde acaba uno y empiezan las otras, y hace falta porque cuadrar el lockup
+    entero para un favicon de 16 px da una mancha ilegible.
+
+    El umbral va contra la ALTURA, no contra el ancho: el aire de un lockup
+    escala con el tamaño de la letra, que es proporcional al alto. Medido contra
+    el ancho, un logo muy alargado exige un hueco enorme y no encuentra ninguno
+    —al de CompuXtreme le faltaban 3 px— mientras que uno corto parte por
+    cualquier espacio entre letras.
+
+    `tope_rel` descarta un corte que se lleve mas de la mitad del ancho: eso ya
+    no es un simbolo con su palabra al lado, y recortarlo empeoraria el favicon
+    en vez de arreglarlo.
+
+    Si no hay hueco util —un logo de una sola pieza— se devuelve entero: peor es
+    cortarlo por un sitio inventado.
+    """
+    alfa = img.split()[3]
+    minimo = max(8, int(img.height * minimo_rel))
+    con_tinta = [x for x in range(img.width) if alfa.crop((x, 0, x + 1, img.height)).getbbox()]
+    if not con_tinta:
+        return img
+
+    previo = con_tinta[0]
+    for x in con_tinta[1:]:
+        if x - previo > minimo:
+            if previo + 1 > img.width * tope_rel:
+                return img
+            recorte = img.crop((0, 0, previo + 1, img.height))
+            return recorte.crop(recorte.getbbox() or (0, 0, recorte.width, recorte.height))
+        previo = x
+    return img
+
+
+def lockup(iso, nombre, color_texto, alto_objetivo=None, ya_lleva_nombre=False):
     """Isotipo + nombre de la marca sobre fondo transparente.
+
+    Si el archivo del cliente YA es un lockup, no se le pega nada: se devuelve
+    tal cual. Antes se le añadia el nombre siempre, y con un logo que ya lo
+    lleva escrito el sidebar acababa diciendolo dos veces
+    ("COMPUXTREME CompuXtreme").
 
     El isotipo se queda a su resolucion nativa: agrandarlo solo inventa pixeles
     cuando el original es un JPG de baja resolucion, que es lo habitual.
     """
+    if ya_lleva_nombre:
+        lienzo = iso
+        if alto_objetivo and lienzo.height != alto_objetivo:
+            escala = alto_objetivo / lienzo.height
+            lienzo = lienzo.resize(
+                (max(1, int(lienzo.width * escala)), alto_objetivo), Image.LANCZOS
+            )
+        return lienzo
+
     alto = iso.height
     tam_texto = int(alto * 0.34) * SUPERMUESTREO
     fuente = ImageFont.truetype(FUENTE, tam_texto)
@@ -199,6 +261,10 @@ def main():
     p = argparse.ArgumentParser(description='Genera los assets de marca de un tenant.')
     p.add_argument('--logo', required=True, help='PNG o JPG con el logo del cliente')
     p.add_argument('--nombre', help='nombre de la marca, va en el lockup')
+    p.add_argument('--lockup', action='store_true',
+                   help='el archivo ya es un lockup con el nombre dentro: no se le añade texto')
+    p.add_argument('--isotipo', action='store_true',
+                   help='el archivo es solo el simbolo, aunque sea ancho: se le añade el nombre')
     p.add_argument('--color', help='color de marca #RRGGBB (por defecto, el dominante del logo)')
     p.add_argument('--salida', help='directorio destino')
     p.add_argument('--quitar-fondo', action='store_true',
@@ -245,15 +311,25 @@ def main():
             f'}}\n'
         )
 
+    # Con un lockup del cliente no se compone nada: se usa su archivo tal cual.
+    ya_lleva_nombre = args.lockup or (es_lockup(iso) and not args.isotipo)
+    # Para todo lo que va en cuadrado —favicons y miniatura— hace falta el
+    # simbolo solo: el lockup entero centrado en 16x16 es una mancha.
+    simbolo = simbolo_de(iso) if ya_lleva_nombre else iso
+    if ya_lleva_nombre:
+        print(f'el logo ya es un lockup ({iso.width}x{iso.height}); no se le añade el nombre',
+              file=sys.stderr)
+
     # Sidebar: un solo archivo para los dos temas. El nombre va en el color de
     # marca, que contrasta contra el blanco del tema claro y contra el gris
     # oscuro del modo noche. En gris oscuro desapareceria de noche.
-    lockup(iso, args.nombre, rgb, alto_objetivo=96).save(destino('sidebar-logo.png'), optimize=True)
+    lockup(iso, args.nombre, rgb, alto_objetivo=96, ya_lleva_nombre=ya_lleva_nombre).save(
+        destino('sidebar-logo.png'), optimize=True)
 
-    # Marca de agua: solo el isotipo, que se muestra al 20-25% de opacidad.
-    ancho_marca = min(1000, iso.width * 2)
-    escala = ancho_marca / iso.width
-    iso.resize((ancho_marca, max(1, int(iso.height * escala))), Image.LANCZOS).save(
+    # Marca de agua: solo el simbolo, que se muestra al 20-25% de opacidad.
+    ancho_marca = min(1000, simbolo.width * 2)
+    escala = ancho_marca / simbolo.width
+    simbolo.resize((ancho_marca, max(1, int(simbolo.height * escala))), Image.LANCZOS).save(
         destino('watermark.png'), optimize=True
     )
 
@@ -263,13 +339,16 @@ def main():
         ('logo_dark.svg', BLANCO),
     ):
         with open(destino(archivo), 'w', encoding='utf-8') as fh:
-            fh.write(svg_con_png(lockup(iso, args.nombre, color_texto, alto_objetivo=160)))
+            fh.write(svg_con_png(lockup(
+                iso, args.nombre, color_texto, alto_objetivo=160,
+                ya_lleva_nombre=ya_lleva_nombre,
+            )))
 
     with open(destino('logo_thumbnail.svg'), 'w', encoding='utf-8') as fh:
-        fh.write(svg_con_png(cuadrar(iso, 256)))
+        fh.write(svg_con_png(cuadrar(simbolo, 256)))
 
     for lado in (16, 32, 96, 512):
-        cuadrar(iso, lado).save(destino(f'favicon-{lado}x{lado}.png'), optimize=True)
+        cuadrar(simbolo, lado).save(destino(f'favicon-{lado}x{lado}.png'), optimize=True)
 
     print(json.dumps({
         'color': color.upper(),

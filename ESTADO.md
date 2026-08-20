@@ -1,6 +1,6 @@
 # Estado del proyecto — Chatsuite Provisioner
 
-**Última actualización:** 2026-08-19
+**Última actualización:** 2026-08-20
 **Objetivo:** dar de alta Chatwoots de clientes (`cliente.dtgp.ai`) con su marca,
 desde un panel, sin instalación manual.
 
@@ -23,6 +23,7 @@ real.**
 | M2 | Motor de provisioning (8 pasos, idempotente) | ✅ Hecho y probado |
 | M3 | Panel web en `dtgp.ai` | ✅ En producción |
 | M4 | Login propio + UI con shadcn/ui | ✅ Hecho (2026-08-18) |
+| M5 | Onboarding: el cliente responde y el alta lo trae | ✅ Hecho (2026-08-20) |
 | — | Wildcard `*.dtgp.ai` en Namecheap | ✅ Hecho (verificado 2026-08-19) |
 | — | Lo que ya vive aquí: listado y reservado | ✅ Hecho (2026-08-19) |
 | — | sudoers acotado | ⬜ Opcional, ver abajo |
@@ -72,18 +73,65 @@ Tarda ~3 minutos y se ve el avance en vivo.
 
 | | |
 |---|---|
-| Panel | `https://dtgp.ai` |
+| Panel | `https://dtgp.ai/login` |
 | Usuario | `dtgp` |
 | Clave | `/home/ubuntu/chatsuite-platform/instalacion/clave-panel.txt` (modo 600) |
 
 Ya no es el popup de `auth_basic`: hay pantalla de acceso propia, sesión por
 cookie firmada (12 h), clave con scrypt, freno tras 8 intentos y botón de salir.
+Vive en `/login` (la dirección la sincroniza `App.tsx` con `replaceState`), sobre
+fondo negro con vídeo, y su hoja de estilo es CSS plano en `vistas/login.css`: son
+medidas exactas de un diseño cerrado y traducirlas a utilidades las volvía
+ilegibles.
 
 **La UI ahora se compila.** Tras tocar `server/panel/`, corre `npm run panel`
-desde `server/` — `public/` es salida de build y se borra en cada compilación.
+desde `server/` — `public/` es salida de build y se borra en cada compilación. Son
+TRES bundles: el panel, el configurador del cliente y el formulario de onboarding,
+cada uno con su `vite.*.config.ts`.
 
 Las credenciales de cada cliente (usuario y clave del admin de su Chatsuite)
 salen en el botón **Detalle** de su tarjeta.
+
+---
+
+## Onboarding: el formulario del cliente
+
+Cada negocio recibe un enlace `dtgp.ai/f/<token>` y una clave de 6 dígitos. Son
+46 preguntas en 12 bloques (`server/src/formulario-preguntas.js`), con guardado
+automático y adjuntos de hasta 25 MB —catálogo en xlsx/csv/json, fotos en ZIP,
+logo—. El cliente puede dejarlo a medias: la sesión dura 30 días.
+
+**El cuestionario tiene UNA sola definición.** De `formulario-preguntas.js` comen
+el formulario público, la vista del panel y el mapeo al perfil del bot. El bundle
+público lo pide por la API en vez de llevar su copia, que es lo que garantizaba
+que un día se desincronizaran.
+
+El tipo de bot (ventas / citas / ambos) se elige al generar el enlace y decide qué
+secciones ve el cliente: un consultorio no arrastra catorce preguntas de zonas de
+domicilio ni precio al por mayor.
+
+Al crear la instancia se elige el formulario en el modal de alta. `volcarFormulario`
+(en `bots.js`) hace dos cosas:
+
+1. **Mapea lo inequívoco al `perfil.json`**: nombre, ciudad, horario, tuteo,
+   emojis, qué no debe decir, cuándo escalar, domicilios y los números del equipo.
+2. **Escribe el briefing completo en `negocio.md`**, que es lo que
+   `bot-engine/motor/prompt.py` lee como fuente de verdad del negocio. Si ese
+   archivo ya tiene contenido NO se pisa: reintentar un alta no puede borrar lo
+   que alguien escribió a mano.
+
+### El horario del bot no es el del negocio
+
+La pregunta 6 son dos cosas separadas a propósito. Hay clientes que quieren el bot
+justo al revés que su equipo: CompuXtreme atiende de 8 a 5 y quiere el bot de 5
+p.m. a 8 a.m. Ese rango **cruza la medianoche**, y `dentro_horario()` lo evaluaba
+como `inicio <= h < fin`, que con 17→8 no se cumple a ninguna hora: el bot se
+habría quedado mudo las 24 horas sin un solo error en el log. Corregido en
+`bot-engine/motor/humanizador.py`; `inicio == fin` significa 24 horas.
+
+Ojo con la agenda: `recortarAgenda` se salta las ventanas nocturnas. Intersectar
+un 17→8 con los bloques de un día deja la agenda entera en `null` y el bot
+contesta «no hay cupo» a todo.
 
 ---
 
@@ -128,6 +176,32 @@ Chatwoot, así que conviene tenerlos a mano.
    que usar binding dinámico `:src="'/ruta'"`.
 6. **`BRAND_COLOR` no está en `GLOBAL_CONFIG_KEYS`**, así que en el layout hay
    que leerlo con `GlobalConfig.get_value`, no con `@global_config`.
+
+---
+
+## La marca del cliente
+
+`generar-marca.py` asumía que se le entrega un **isotipo** (solo el símbolo) y le
+pegaba el nombre del cliente al lado. Con un logo que ya lo lleva escrito —el de
+CompuXtreme es la X más la palabra COMPUXTREME— el sidebar acababa diciéndolo dos
+veces, y el favicon era el lockup entero encajado en un cuadrado, o sea una mancha
+ilegible a 16 px.
+
+Ahora distingue por proporción: más de 2.2:1 es un lockup y se usa tal cual, y para
+lo que va en cuadrado se recorta el símbolo buscando el primer hueco vertical
+ancho. Se puede forzar con `--lockup` o `--isotipo`. El umbral del hueco va contra
+la ALTURA, no contra el ancho: el aire de un lockup escala con el tamaño de la
+letra, y medido contra el ancho a CompuXtreme le faltaban 3 px para detectarlo.
+
+**El caché de un año.** Rails sirve `/brand-assets/` con `max-age=31556952` y sin
+ETag, así que regenerar la marca en caliente no se veía NUNCA en el navegador: el
+archivo cambiaba en disco y en pantalla no pasaba nada. `nginx.tpl` ahora lleva un
+`location /brand-assets/` que lo reemplaza por `max-age=0, must-revalidate`; con
+la revalidación Rails contesta 304 si no cambió, así que no cuesta ancho de banda.
+Los tenants anteriores lo llevan en `nginx-extra/marca.conf`.
+
+Para cambiar el logo de DTGP en el panel: `bin/logo-dtgp.py logo-nuevo.png` y
+`npm run panel`. De un archivo saca el lockup, el favicon y el icono de iOS.
 
 ---
 

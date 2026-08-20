@@ -1,9 +1,10 @@
+import { useState } from 'react';
 import { motion } from 'motion/react';
 import {
   ExternalLink, MoreVertical, Play, Square, Archive, RotateCw, Trash2, Info, Bot, QrCode, PauseCircle, PlayCircle,
 } from 'lucide-react';
 
-import type { Tenant } from '@/api';
+import { api, type Tenant } from '@/api';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -38,6 +39,14 @@ export function TarjetaCliente({
   tenant: t, indice, alDetalle, alBot, alWhatsapp, alAccion, alBorrar,
 }: Props) {
   const trabajando = t.estado === 'aprovisionando';
+  // 'cargando' | 'lockup' | 'icono' | 'sin'
+  //
+  // Un logo ancho es un lockup: ya lleva el nombre del negocio escrito dentro
+  // (el de CompuXtreme es la X mas "COMPUXTREME"). Repetirlo al lado en texto
+  // es decir dos veces lo mismo, y ademas obliga a encoger el logo hasta que no
+  // se lee. Con la proporcion real de la imagen se decide: ancho manda el logo
+  // solo, cuadrado se queda el par icono + nombre.
+  const [logo, setLogo] = useState<'cargando' | 'lockup' | 'icono' | 'sin'>('cargando');
   const contenedores = t.contenedores
     ? Object.entries(t.contenedores).map(([k, v]) => `${k}:${v}`).join(' · ')
     : 'sin contenedores';
@@ -52,13 +61,41 @@ export function TarjetaCliente({
     >
       <Card className="group h-full gap-3 p-5 transition-colors hover:border-white/18">
         <div className="flex items-start justify-between gap-3">
-          <div className="flex min-w-0 items-center gap-2.5">
+          <div className="flex min-w-0 items-center gap-3">
+            {/* Sin fondo: el logo va directo sobre la tarjeta. Solo cuando NO
+                hay archivo queda el cuadro del color de marca, para que el hueco
+                no parezca un icono roto. `contain` y no `cover` porque un logo
+                recortado deja de ser el logo. */}
             <span
-              className="size-3.5 shrink-0 rounded-[0.3rem] ring-1 ring-white/20"
-              style={{ background: t.color }}
-              aria-hidden
-            />
-            <h3 className="truncate text-base font-semibold">{t.nombre}</h3>
+              className={cn(
+                'grid shrink-0 place-items-center overflow-hidden rounded-lg',
+                logo === 'lockup' ? 'h-9 max-w-44' : 'size-9',
+                logo === 'sin' && 'size-9 ring-1 ring-white/15',
+              )}
+              style={logo === 'sin' ? { background: t.color } : undefined}
+            >
+              <img
+                src={api.urlLogo(t.slug)}
+                alt={logo === 'lockup' ? t.nombre : ''}
+                aria-hidden={logo !== 'lockup'}
+                loading="lazy"
+                className={cn(
+                  'max-h-full max-w-full object-contain',
+                  logo === 'lockup' ? 'py-0.5' : 'size-full',
+                  logo === 'cargando' && 'opacity-0',
+                )}
+                onLoad={(e) => {
+                  const img = e.currentTarget;
+                  setLogo(img.naturalWidth / img.naturalHeight > 2.2 ? 'lockup' : 'icono');
+                }}
+                // Sin logo en disco —un alta a medias, o uno viejo— el cuadro se
+                // queda como muestra de color en vez de dejar el icono roto.
+                onError={(e) => { e.currentTarget.style.display = 'none'; setLogo('sin'); }}
+              />
+            </span>
+            {logo !== 'lockup' && (
+              <h3 className="truncate text-base font-semibold">{t.nombre}</h3>
+            )}
           </div>
 
           <DropdownMenu>
