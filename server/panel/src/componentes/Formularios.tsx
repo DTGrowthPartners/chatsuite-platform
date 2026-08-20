@@ -391,7 +391,11 @@ function DialogoEnlace({ datos, alCerrar }: {
 
   return (
     <Dialog open onOpenChange={(o) => !o && alCerrar()}>
-      <DialogContent>
+      {/* Mas ancho que el resto de dialogos: aqui hay un enlace largo, una clave
+          y el mensaje ya redactado. Con el ancho por defecto (max-w-sm) el
+          enlace se partia y el mensaje obligaba a hacer scroll justo cuando lo
+          que quieres es leerlo entero de un vistazo antes de copiarlo. */}
+      <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Listo, este es el enlace</DialogTitle>
           <DialogDescription>
@@ -407,7 +411,7 @@ function DialogoEnlace({ datos, alCerrar }: {
           <div className="grid gap-2">
             <Label>Mensaje listo para pegar</Label>
             <textarea
-              readOnly rows={6}
+              readOnly rows={4}
               className="w-full resize-y rounded-md border bg-transparent px-3 py-2 text-sm"
               value={mensaje}
             />

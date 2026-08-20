@@ -64,13 +64,22 @@ export function TarjetaCliente({
           <div className="flex min-w-0 items-center gap-3">
             {/* Sin fondo: el logo va directo sobre la tarjeta. Solo cuando NO
                 hay archivo queda el cuadro del color de marca, para que el hueco
-                no parezca un icono roto. `contain` y no `cover` porque un logo
-                recortado deja de ser el logo. */}
+                no parezca un icono roto.
+
+                Los topes de la imagen son ABSOLUTOS (max-h-9 / max-w-44) y no
+                `max-h-full max-w-full`. El porcentaje se resuelve contra el
+                contenedor, pero el ancho del contenedor lo decide la propia
+                imagen —es un grid sin ancho dentro de una fila flex—, asi que la
+                referencia es circular: el navegador se salta el tope, la imagen
+                sale mas alta que la caja y el overflow la recortaba por arriba y
+                por abajo. Con dos topes absolutos y las dimensiones en auto, el
+                navegador reduce respetando la proporcion, que es lo que se
+                queria desde el principio. */}
             <span
               className={cn(
-                'grid shrink-0 place-items-center overflow-hidden rounded-lg',
-                logo === 'lockup' ? 'h-9 max-w-44' : 'size-9',
-                logo === 'sin' && 'size-9 ring-1 ring-white/15',
+                'grid shrink-0 place-items-center rounded-lg',
+                logo !== 'lockup' && 'size-9 overflow-hidden',
+                logo === 'sin' && 'ring-1 ring-white/15',
               )}
               style={logo === 'sin' ? { background: t.color } : undefined}
             >
@@ -80,8 +89,8 @@ export function TarjetaCliente({
                 aria-hidden={logo !== 'lockup'}
                 loading="lazy"
                 className={cn(
-                  'max-h-full max-w-full object-contain',
-                  logo === 'lockup' ? 'py-0.5' : 'size-full',
+                  'object-contain',
+                  logo === 'lockup' ? 'h-auto w-auto max-h-9 max-w-44' : 'size-full',
                   logo === 'cargando' && 'opacity-0',
                 )}
                 onLoad={(e) => {
