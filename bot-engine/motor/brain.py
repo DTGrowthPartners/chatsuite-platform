@@ -34,6 +34,10 @@ class Respuesta:
     motivo: str = ""
     efectos: list = field(default_factory=list)
     tools_usadas: list = field(default_factory=list)
+    # Las etiquetas que se pusieron en este turno. Se aplican aquí mismo, pero
+    # además salen porque al escalar son la única pista de TEMA que hay para
+    # elegir asesor sin volver a preguntarle al modelo.
+    etiquetas: list = field(default_factory=list)
     # Texto que el modelo escribió EN EL MISMO turno en que pidió una tool.
     # No se envía (ver el comentario en el bucle), pero el simulador lo muestra:
     # es la explicación de por qué a veces la respuesta final «olvida» algo que
@@ -211,6 +215,7 @@ async def responder(
             texto = ("\n\n".join(t for t in partes if t.strip()).strip()
                      or "ya te comunico con mi compañero, un momento")
             return Respuesta(texto=texto, escalar=True, motivo=motivo,
+                             etiquetas=list(etiquetas),
                              efectos=ctx.efectos, tools_usadas=usadas,
                              texto_descartado=descartados, tokens_in=tokens_in,
                              tokens_out=tokens_out, ms_modelo=ms_modelo,

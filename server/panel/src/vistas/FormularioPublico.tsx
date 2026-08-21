@@ -30,7 +30,7 @@ type Pregunta = {
   /** Numero que se muestra: lo calcula el servidor sobre el conjunto filtrado. */
   numero: number;
   tipo: 'texto' | 'largo' | 'si_no' | 'si_no_texto' | 'opciones' | 'multiple' | 'archivo'
-    | 'horario' | 'ventana' | 'lista';
+    | 'horario' | 'horario_semana' | 'ventana' | 'lista';
   pregunta: string;
   ayuda?: string;
   critico?: boolean;
@@ -633,6 +633,14 @@ function Control({ pregunta, valor, adjuntos, alCambiar, alAdjuntar }: {
         </div>
       );
 
+    case 'horario_semana':
+      return (
+        <HorarioSemana
+          valor={(valor as Record<string, TramoDia[] | null>) || {}}
+          alCambiar={(v) => alCambiar(pregunta.id, v, true)}
+        />
+      );
+
     case 'lista':
       return (
         <ListaFilas
@@ -725,6 +733,109 @@ const HORAS_ITEMS: Record<string, string> = {
   [SIN]: '--',
   ...Object.fromEntries(Array.from({ length: 25 }, (_, i) => [String(i), `${String(i).padStart(2, '0')}:00`])),
 };
+
+type TramoDia = { desde: string; hasta: string };
+
+// Las mismas llaves que `citas.horario` del perfil: la respuesta se copia tal
+// cual al volcar, sin traducir nada por el camino.
+const DIAS_FORM: [string, string][] = [
+  ['lunes', 'Lunes'], ['martes', 'Martes'], ['miercoles', 'Miércoles'],
+  ['jueves', 'Jueves'], ['viernes', 'Viernes'], ['sabado', 'Sábado'],
+  ['domingo', 'Domingo'],
+];
+
+/**
+ * El horario de la agenda, día por día.
+ *
+ * Se pregunta así y no como «de 8 a 6, lunes a sábado» porque los días en texto
+ * libre hay que adivinarlos, y adivinar mal deja al bot contestando «no hay
+ * cupo» los sábados sin que nada falle a la vista.
+ *
+ * Un día sin tramos NO es un día sin contestar: es un día que no se agenda, y
+ * se dice en pantalla para que se note la diferencia.
+ */
+function HorarioSemana({
+  valor, alCambiar,
+}: {
+  valor: Record<string, TramoDia[] | null>;
+  alCambiar: (v: Record<string, TramoDia[] | null>) => void;
+}) {
+  const tramos = (dia: string): TramoDia[] => {
+    const v = valor[dia];
+    return Array.isArray(v) ? v : [];
+  };
+  const poner = (dia: string, nuevos: TramoDia[]) =>
+    alCambiar({ ...valor, [dia]: nuevos.length ? nuevos : null });
+
+  return (
+    <div className="grid gap-2">
+      {DIAS_FORM.map(([llave, titulo]) => {
+        const ts = tramos(llave);
+        return (
+          <div key={llave} className="grid gap-2 rounded-lg border p-2.5 sm:grid-cols-[7rem_1fr] sm:items-start">
+            <span className="pt-1.5 text-sm font-medium">{titulo}</span>
+            <div className="grid gap-2">
+              {ts.length === 0 ? (
+                <span className="py-1.5 text-sm text-muted-foreground">No se agenda</span>
+              ) : ts.map((t, i) => (
+                // eslint-disable-next-line react/no-array-index-key
+                <div key={i} className="flex flex-wrap items-center gap-2">
+                  <Input
+                    type="time"
+                    className="w-32"
+                    value={t.desde || ''}
+                    onChange={(e) => poner(llave, ts.map((x, j) => (j === i ? { ...x, desde: e.target.value } : x)))}
+                  />
+                  <span className="text-sm text-muted-foreground">a</span>
+                  <Input
+                    type="time"
+                    className="w-32"
+                    value={t.hasta || ''}
+                    onChange={(e) => poner(llave, ts.map((x, j) => (j === i ? { ...x, hasta: e.target.value } : x)))}
+                  />
+                  <Button
+                    type="button" variant="ghost" size="sm"
+                    onClick={() => poner(llave, ts.filter((_, j) => j !== i))}
+                    aria-label={`quitar tramo de ${titulo}`}
+                  >
+                    <X className="size-3.5" />
+                  </Button>
+                </div>
+              ))}
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button" variant="outline" size="sm"
+                  onClick={() => poner(llave, [...ts, ts.length
+                    ? { desde: '14:00', hasta: '18:00' }
+                    : { desde: '08:00', hasta: '12:00' }])}
+                >
+                  <Plus className="size-3.5" /> {ts.length ? 'Otro tramo' : 'Agendar este dia'}
+                </Button>
+                {ts.length > 0 && DIAS_FORM.some(([o]) => o !== llave && tramos(o).length === 0) ? (
+                  <Button
+                    type="button" variant="ghost" size="sm"
+                    onClick={() => {
+                      // Copiar a los dias vacios: casi todos los negocios tienen
+                      // el mismo horario de lunes a viernes, y repetirlo cinco
+                      // veces a mano es donde la gente abandona el formulario.
+                      const copia = { ...valor };
+                      for (const [o] of DIAS_FORM) {
+                        if (o !== llave && tramos(o).length === 0) copia[o] = ts.map((t) => ({ ...t }));
+                      }
+                      alCambiar(copia);
+                    }}
+                  >
+                    Copiar a los dias vacios
+                  </Button>
+                ) : null}
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 function HoraSelect({ valor, alCambiar }: { valor?: number; alCambiar: (h: number) => void }) {
   return (

@@ -214,6 +214,17 @@ export async function enlazarBot(slug, log) {
     bot = AgentBot.find(${Number(tenant.bot.agentBotId)})
     AgentBotInbox.where(inbox_id: inbox.id).destroy_all
     AgentBotInbox.create!(inbox_id: inbox.id, agent_bot_id: bot.id, account_id: cuenta.id, status: 'active')
+
+    # Todo el equipo, dentro del inbox. Un agent sin InboxMember no ve NINGUN
+    # inbox (app/policies/inbox_policy.rb resuelve por user.assigned_inboxes):
+    # entra a Chatsuite, se encuentra la pantalla vacia y no hay ni un error que
+    # lo explique. Al dar de alta a un asesor ya se le suma a los inboxes que
+    # existan (ver asesores.js), pero este se crea DESPUES en un alta normal
+    # —primero el bot, luego el WhatsApp— asi que sin esto los asesores dados de
+    # alta antes del QR se quedarian fuera del unico inbox que importa.
+    cuenta.account_users.each do |au|
+      InboxMember.find_or_create_by!(inbox_id: inbox.id, user_id: au.user_id)
+    end
     puts "JSON:" + { inbox_id: inbox.id, inbox: inbox.name,
                      auto_assignment: inbox.enable_auto_assignment }.to_json
   `.trim();

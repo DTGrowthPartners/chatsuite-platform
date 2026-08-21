@@ -10,6 +10,7 @@ import path from 'node:path';
 import { DIR_PUBLICO, DOMINIO_BASE, GENERADOR_MARCA, PUERTO_PANEL } from './config.js';
 import * as auth from './auth.js';
 import * as cliente from './cliente.js';
+import * as asesores from './asesores.js';
 import * as bots from './bots.js';
 import * as ciclo from './ciclo.js';
 import * as evolution from './evolution.js';
@@ -528,12 +529,17 @@ const rutas = {
 
   'GET /api/bot/estado': async (req, res, url) => {
     const slug = url.searchParams.get('slug');
-    if (!obtener(slug)) return json(res, 404, { error: 'no existe' });
+    const tenant = obtener(slug);
+    if (!tenant) return json(res, 404, { error: 'no existe' });
+    // El formulario de origen sale del tenant y no del bot, a proposito: se
+    // necesita tambien —sobre todo— cuando el bot esta caido, que es cuando el
+    // panel muestra las acciones de recuperacion.
+    const origen = { formularioId: tenant.botAlAlta?.formularioId || null };
     try {
-      json(res, 200, await bots.estadoBot(slug));
+      json(res, 200, { ...await bots.estadoBot(slug), ...origen });
     } catch (err) {
       // El bot caido no es un error del panel: se reporta como estado.
-      json(res, 200, { caido: true, detalle: err.message });
+      json(res, 200, { caido: true, detalle: err.message, ...origen });
     }
   },
 
@@ -585,10 +591,71 @@ const rutas = {
       arrancar: (log) => bots.arrancar(slug, log),
       detener: (log) => bots.detener(slug, log),
       etiquetas: (log) => bots.sincronizarEtiquetas(slug, log),
+      // Reescribe el briefing con lo que el cliente haya contestado desde el
+      // alta. Se lleva por delante lo escrito a mano en negocio.md, asi que el
+      // panel lo confirma antes; aqui no se vuelve a preguntar.
+      revolcar: (log) => bots.revolcarFormulario(slug, log),
     };
     if (!acciones[accion]) return json(res, 400, { error: `accion desconocida: ${accion}` });
     const job = enSegundoPlano(slug, `bot ${accion} ${slug}`, acciones[accion]);
     json(res, 202, { job: job.id });
+  },
+
+  // --- Asesores del cliente --------------------------------------------------
+  //
+  // Cada asesor con su usuario y su clave: es lo que hace que en la conversacion
+  // se vea quien contesto, y lo que le permite al bot asignarle el chat cuando
+  // escala. Lo de aqui toca el Rails del tenant, asi que responde despacio
+  // (~1 s por llamada): no se pone en ningun sondeo.
+
+  'GET /api/asesores': async (req, res, url) => {
+    const slug = url.searchParams.get('slug');
+    if (!obtener(slug)) return json(res, 404, { error: 'no existe' });
+    try {
+      json(res, 200, await asesores.listar(slug));
+    } catch (err) {
+      json(res, 502, { error: err.message });
+    }
+  },
+
+  'POST /api/asesores': async (req, res) => {
+    const { slug, ...datos } = await leerCuerpo(req);
+    if (!obtener(slug)) return json(res, 404, { error: 'no existe' });
+    try {
+      json(res, 200, await asesores.crear(slug, datos));
+    } catch (err) {
+      json(res, 400, { error: err.message });
+    }
+  },
+
+  'PUT /api/asesores': async (req, res) => {
+    const { slug, id, ...cambios } = await leerCuerpo(req);
+    if (!obtener(slug)) return json(res, 404, { error: 'no existe' });
+    try {
+      json(res, 200, { asesor: await asesores.actualizar(slug, id, cambios) });
+    } catch (err) {
+      json(res, 400, { error: err.message });
+    }
+  },
+
+  'POST /api/asesores/clave': async (req, res) => {
+    const { slug, id } = await leerCuerpo(req);
+    if (!obtener(slug)) return json(res, 404, { error: 'no existe' });
+    try {
+      json(res, 200, await asesores.reiniciarClave(slug, id));
+    } catch (err) {
+      json(res, 400, { error: err.message });
+    }
+  },
+
+  'POST /api/asesores/eliminar': async (req, res) => {
+    const { slug, id, soloFicha } = await leerCuerpo(req);
+    if (!obtener(slug)) return json(res, 404, { error: 'no existe' });
+    try {
+      json(res, 200, await asesores.eliminar(slug, id, { soloFicha }));
+    } catch (err) {
+      json(res, 400, { error: err.message });
+    }
   },
 
   // --- WhatsApp del cliente (Evolution + QR) ---------------------------------

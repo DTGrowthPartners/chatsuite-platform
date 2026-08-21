@@ -178,10 +178,16 @@ async def _procesar(conv_id: int, ev: dict):
             eventos.registrar("no_respondio", conv_id, motivo="congelado")
             return
 
-        ok, motivo = audiencia.atiende(telefono)
-        if not ok:
-            log.info("conv %s: %s (%s)", conv_id, motivo, telefono)
-            return
+        # En prueba el filtro de audiencia NO aplica: ser del equipo es
+        # justamente la condición para entrar, y con `audiencia: clientes` —el
+        # caso normal— volver a filtrarlo acá dejaba el estado `prueba` sin
+        # nadie a quien contestar, ni al equipo ni a los clientes. El bot se
+        # veía muerto y el log era la única pista.
+        if p.estado != perfil_mod.PRUEBA:
+            ok, motivo = audiencia.atiende(telefono)
+            if not ok:
+                log.info("conv %s: %s (%s)", conv_id, motivo, telefono)
+                return
 
         if estado.pausada(telefono):
             log.info("conv %s pausada (%s); no responde", conv_id, telefono)
@@ -205,7 +211,7 @@ async def _procesar(conv_id: int, ev: dict):
                 f"El bot lleva más de {humanizador.TOPE_DURO_HORA} mensajes en una hora "
                 "(posible descontrol). Esta conversación pasó a la cola humana sin respuesta.",
             )
-            await chatwoot.a_humano(conv_id)
+            await _escalar(conv_id)
             return
 
         if _PIDE_HUMANO.search(texto):
@@ -213,7 +219,7 @@ async def _procesar(conv_id: int, ev: dict):
                 conv_id, p.get("operacion.mensaje_handoff", "ya te comunico con mi compañero, un momento"),
                 time.monotonic() - inicio, telefono,
             )
-            await chatwoot.a_humano(conv_id)
+            await _escalar(conv_id)
             log.info("conv %s escalada por palabra clave", conv_id)
             return
 
@@ -234,6 +240,29 @@ async def _procesar(conv_id: int, ev: dict):
             _en_proceso.discard(conv_id)
     except Exception as e:
         await _degradar(conv_id, telefono, e)
+
+
+async def _escalar(conv_id: int, tema: str = "") -> dict | None:
+    """Handoff: saca la conversación de la cola del bot y le pone dueño.
+
+    Lo segundo es lo que hace que el handoff signifique algo cuando el negocio
+    tiene más de un asesor. Sin asignatario la conversación queda `open` y sin
+    dueño, y una cola que es de todos no la mira nadie: el cliente pidió una
+    persona y se queda esperando igual.
+
+    El orden importa. Primero `a_humano`, que es lo que no puede fallar; la
+    asignación va después y es best-effort. Si se hiciera al revés, un error
+    asignando dejaría al cliente en la cola del bot con el bot ya callado.
+    """
+    await chatwoot.a_humano(conv_id)
+    try:
+        elegido = await chatwoot.asignar_al_menos_cargado(conv_id, audiencia.banca(tema))
+    except Exception:
+        log.exception("conv %s: falló el reparto; queda en la cola general", conv_id)
+        return None
+    if elegido:
+        log.info("conv %s asignada a %s", conv_id, elegido.get("nombre"))
+    return elegido
 
 
 async def _responder(conv_id: int, texto: str, telefono: str, inicio: float):
@@ -265,7 +294,9 @@ async def _responder(conv_id: int, texto: str, telefono: str, inicio: float):
                 turnos=len(mensajes), partes=len(humanizador.partir(r.texto)),
             )
         if r.escalar:
-            await chatwoot.a_humano(conv_id)
+            # La primera etiqueta que puso el modelo es la mejor pista de tema
+            # que hay sin preguntarle otra vez: «reclamo», «mayorista»…
+            await _escalar(conv_id, (r.etiquetas or [""])[0])
             log.info("conv %s escalada por el modelo: %s", conv_id, r.motivo)
     except Exception as e:
         await _degradar(conv_id, telefono, e)
@@ -281,7 +312,7 @@ async def _degradar(conv_id: int, telefono: str, e: Exception):
             "cola humana.",
         )
         await chatwoot.enviar(conv_id, brain.MENSAJE_DEGRADACION)
-        await chatwoot.a_humano(conv_id)
+        await _escalar(conv_id)
     except Exception:
         log.exception("conv %s: tampoco se pudo escalar", conv_id)
 

@@ -43,7 +43,9 @@ cae, se cae uno solo.
     fotos/              los archivos de fotos.json (flyer, mapa, fachada…)
     domicilios.json     [{zona, precio}]   · precio 0 = gratis, null = por confirmar
     respuestas.json     [{id, titulo, contenido, uso: datos|referencia}]
-    equipo.json         [{nombre, telefono, rol}]
+    equipo.json         [{nombre, telefono, rol, agente_id, nivel, temas, avisos}]
+                        agente_id = su usuario en Chatsuite; sin el no se le puede
+                        asignar una conversacion al escalar
     pedidos.json        lo escribe el bot
 ```
 

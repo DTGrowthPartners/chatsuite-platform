@@ -17,6 +17,16 @@
 // tabla de zonas de domicilio ni precio al por mayor, y arrastrarlo por catorce
 // preguntas que no le aplican es la mejor forma de que abandone el formulario.
 
+// Los dias, en el orden y con las llaves que usa `citas.horario` del perfil.
+// Se exporta porque de aqui comen tres sitios: el formulario que pinta las siete
+// filas, el volcado que escribe el perfil, y el briefing que lo escribe en
+// texto. Tenerlo repetido garantizaba que un dia se desincronizaran.
+export const DIAS_SEMANA = [
+  ['lunes', 'Lunes'], ['martes', 'Martes'], ['miercoles', 'Miercoles'],
+  ['jueves', 'Jueves'], ['viernes', 'Viernes'], ['sabado', 'Sabado'],
+  ['domingo', 'Domingo'],
+];
+
 export const TIPOS_BOT = [
   { id: 'tienda', titulo: 'Ventas', descripcion: 'Vende productos, toma pedidos, cobra y despacha.' },
   { id: 'citas', titulo: 'Citas', descripcion: 'Agenda, reagenda y recuerda citas o reservas.' },
@@ -295,7 +305,24 @@ export const PREGUNTAS = [
     ayuda: 'Si todos hacen de todo, basta con ponerlo.',
   },
   {
-    id: 'reglas_agenda', seccion: 'agenda', n: 26, tipo: 'largo',
+    // El horario del NEGOCIO (pregunta 6) y el de la AGENDA no son el mismo, y
+    // confundirlos es el fallo mas caro de un bot de citas: la agenda nace
+    // lunes a viernes 8-12/14-18 con sabado y domingo en null, asi que un
+    // negocio que atiende sabados contesta «no hay cupo» todos los sabados sin
+    // un error en ningun log. Antes esto habia que arreglarlo a mano en el
+    // configurador despues de cada alta, y era facil olvidarlo.
+    //
+    // Se pregunta por dia y no como rango con los dias en texto libre porque
+    // «lunes a sabado» hay que adivinarlo, y adivinar mal aqui es justo lo que
+    // produce el fallo silencioso.
+    id: 'horario_agenda', seccion: 'agenda', n: 26, critico: true, tipo: 'horario_semana',
+    pregunta: 'En que horario se pueden agendar citas?',
+    ayuda: 'Un dia sin horas no se agenda. Dos tramos dejan el corte de almuerzo. '
+      + 'Ojo: esto es cuando hay CUPO, que no tiene por que ser el horario en que '
+      + 'contesta el bot.',
+  },
+  {
+    id: 'reglas_agenda', seccion: 'agenda', n: 27, tipo: 'largo',
     pregunta: 'Reglas de la agenda',
     ayuda: 'Con cuanta anticipacion se puede pedir cita, hasta cuando se puede cancelar, '
       + 'si se cobra anticipo, que pasa si no llegan.',
@@ -380,9 +407,29 @@ export const PREGUNTAS = [
 
   // ---- 9. Equipo ----
   {
-    id: 'equipo', seccion: 'equipo', n: 33, critico: true, tipo: 'largo',
-    pregunta: 'Quienes atienden? Nombre y numero de WhatsApp de cada uno',
-    ayuda: 'Uno por linea, con el numero. El bot no los trata como clientes y les avisa las urgencias.',
+    // Era texto libre y de ahi solo se sacaban los numeros con una expresion
+    // regular, asi que el nombre y el rol se perdian: el bot sabia a que
+    // numeros no atender, pero no quien era cada uno. Ahora es una tabla y cada
+    // fila nace ya como una ficha del equipo, lista para darle su usuario de
+    // Chatsuite desde el panel.
+    id: 'equipo', seccion: 'equipo', n: 33, critico: true, tipo: 'lista',
+    pregunta: 'Quienes atienden?',
+    ayuda: 'Una fila por persona. El bot no los trata como clientes, les avisa las '
+      + 'urgencias y les pasa el chat cuando escala. Cada uno entrara a Chatsuite con '
+      + 'su propio usuario, asi que en la conversacion se vera quien contesto.',
+    etiquetaAgregar: 'Agregar persona',
+    columnas: [
+      { id: 'nombre', etiqueta: 'Nombre', ancho: 2, ejemplo: 'Ana Gomez' },
+      { id: 'telefono', etiqueta: 'WhatsApp con indicativo', ancho: 2, ejemplo: '573001112233' },
+      {
+        id: 'correo', etiqueta: 'Correo (con el que entra)', ancho: 2, opcional: true,
+        ejemplo: 'ana@tunegocio.com',
+      },
+      {
+        id: 'rol', etiqueta: 'Rol', opcional: true,
+        ejemplo: 'asesor, supervisor o dueño',
+      },
+    ],
   },
   {
     id: 'cuando_escalar', seccion: 'equipo', n: 34, critico: true, tipo: 'multiple',

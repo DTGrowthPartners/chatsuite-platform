@@ -93,6 +93,21 @@ RUN sed -i \
       /app/app/javascript/v3/views/login/Index.vue \
  && grep -q 'linear-gradient(100deg, rgb(var(--brand-rgb))' /app/app/javascript/v3/views/login/Index.vue
 
+# 4) Quien escribio cada mensaje, a la vista en el globo.
+#
+#    Chatwoot ya distingue bot de humano por dentro (sender.type) y pinta el
+#    avatar, pero no escribe el nombre en ninguna parte. Con un usuario
+#    compartido eso daba igual; con varios asesores, saber si contesto el bot,
+#    Ana o Beto es exactamente lo que hace falta ver.
+#
+#    Va ANTES del precompile —al reves que patch_layout.rb— porque toca un .vue
+#    y eso lo empaqueta Vite. Ponerlo despues no tendria ningun efecto visible.
+COPY patches/patch_autor.rb /tmp/patch_autor.rb
+RUN ruby /tmp/patch_autor.rb \
+ && grep -q 'chatsuite-autor' \
+      /app/app/javascript/dashboard/components-next/message/MessageMeta.vue \
+ && rm /tmp/patch_autor.rb
+
 # 5) Marca por defecto (la de DTGP). Sirve para que la imagen arranque sola sin
 #    montaje, y como plantilla de lo que el provisioner genera por cliente.
 COPY brand-assets/ /app/public/brand-assets/

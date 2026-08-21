@@ -88,7 +88,7 @@ async def avisar_sin_conversacion(tipo: str, detalle: str) -> None:
 async def _avisar_por_whatsapp(motivo: str, cliente: str, tipo: str = "") -> None:
     p = perfil_mod.actual()
     destinos = p.get("alertas.numeros_pregunta", []) if tipo == "pregunta" else []
-    destinos = [estado.normalizar(n) for n in destinos] or audiencia.telefonos_equipo()
+    destinos = [estado.normalizar(n) for n in destinos] or audiencia.telefonos_equipo(tipo)
     if not destinos:
         return
 

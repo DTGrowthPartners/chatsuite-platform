@@ -39,6 +39,15 @@ const PERMITIDAS = new Set([
   'GET /api/bot/metricas',
   'POST /api/bot/simular',
   'GET /api/bot/prompt',
+  // Los asesores los gestiona el dueño solo: dar de alta a quien contesta es
+  // exactamente el tipo de cambio que no tiene por que pasar por nosotros.
+  // Requiere administrator, como todo lo de aqui (ver `autenticar`), asi que un
+  // asesor no puede darse permisos a si mismo ni sacar a un compañero.
+  'GET /api/asesores',
+  'POST /api/asesores',
+  'PUT /api/asesores',
+  'POST /api/asesores/clave',
+  'POST /api/asesores/eliminar',
   // WhatsApp, solo de lectura: el cliente ve si su numero sigue conectado y
   // reescanea el QR si se cayo. Desconectar, rehacer o eliminar la instancia
   // NO estan aqui a proposito: rehacer reimporta historial y eliminar borra la

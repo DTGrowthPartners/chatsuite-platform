@@ -17,7 +17,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { DIR_TENANTS } from './config.js';
-import { avance, preguntasDe, respondida, PREGUNTAS, SECCIONES } from './formulario-preguntas.js';
+import {
+  avance, preguntasDe, respondida, DIAS_SEMANA, PREGUNTAS, SECCIONES,
+} from './formulario-preguntas.js';
 
 export const DIR_FORMULARIOS = path.join(DIR_TENANTS, '_formularios');
 const ARCHIVO_SECRETO = path.join(DIR_FORMULARIOS, '_secreto');
@@ -403,6 +405,84 @@ const lineas = (v) => texto(v).split('\n').map((l) => l.trim()).filter(Boolean);
  * medianoche. Devuelve null cuando el cliente no lo definio, para no pisar el
  * valor por defecto del perfil con un cero.
  */
+/**
+ * Las fichas del equipo que el cliente escribio en el formulario.
+ *
+ * Nacen SIN `agente_id`: son el padron que el bot usa para no tratarlos como
+ * clientes y para avisarles, pero todavia no pueden entrar a Chatsuite. El
+ * panel las muestra marcadas como «sin acceso», que es la invitacion a darles
+ * su usuario. Ver asesores.js.
+ *
+ * Antes esta pregunta era texto libre y de aqui solo se sacaban los numeros con
+ * una expresion regular: el nombre y el rol se perdian, asi que el bot sabia a
+ * que numeros no atender pero no quien era cada uno.
+ */
+export function fichasEquipo(form) {
+  const filas = (form.respuestas || {}).equipo;
+  if (!Array.isArray(filas)) return [];
+  const ROLES = new Set(['dueño', 'supervisor', 'asesor']);
+  const salida = [];
+  const vistos = new Set();
+  for (const f of filas) {
+    const telefono = String(f?.telefono || '').replace(/[^0-9]/g, '');
+    const nombre = texto(f?.nombre);
+    if (!nombre && !telefono) continue;
+    // Dos filas con el mismo numero le mandarian cada aviso por duplicado.
+    if (telefono && vistos.has(telefono)) continue;
+    if (telefono) vistos.add(telefono);
+    const rolCrudo = texto(f?.rol).toLowerCase();
+    const rol = ROLES.has(rolCrudo) ? rolCrudo : 'asesor';
+    salida.push({
+      nombre,
+      telefono,
+      rol,
+      nivel: rol === 'dueño' ? 3 : (rol === 'supervisor' ? 2 : 1),
+      temas: [],
+      // El dueño quiere enterarse de todo; un asesor solo de lo urgente, o con
+      // cinco personas nadie vuelve a mirar los avisos.
+      avisos: rol === 'asesor' ? 'escalada' : 'todo',
+      agente_id: null,
+      email: texto(f?.correo).toLowerCase() || null,
+    });
+  }
+  return salida;
+}
+
+/**
+ * El horario de la agenda, dia por dia, listo para `citas.horario`.
+ *
+ * Devuelve null si el cliente no contesto nada: pisar el horario sembrado con
+ * un objeto vacio dejaria la agenda entera sin huecos, y el bot contestaria
+ * «no hay cupo» a todo sin un error en ningun log — que es exactamente el
+ * fallo que esta pregunta viene a evitar.
+ *
+ * Un tramo con horas invalidas o al reves (de 18:00 a 09:00) se descarta en vez
+ * de escribirse: el motor lo ignoraria igual (`_horario_del_dia` exige
+ * `0 <= ini < fin`), pero guardado se ve como si estuviera configurado.
+ */
+function horarioSemana(valor) {
+  if (!valor || typeof valor !== 'object') return null;
+  const aMin = (t) => {
+    const m = /^(\d{1,2}):(\d{2})$/.exec(String(t || '').trim());
+    if (!m) return -1;
+    const [h, min] = [Number(m[1]), Number(m[2])];
+    return h >= 0 && h <= 24 && min >= 0 && min < 60 ? (h * 60) + min : -1;
+  };
+  const hhmm = (t) => String(t).trim().padStart(5, '0');
+
+  const salida = {};
+  let alguno = false;
+  for (const [llave] of DIAS_SEMANA) {
+    const bruto = Array.isArray(valor[llave]) ? valor[llave] : [];
+    const tramos = bruto
+      .filter((t) => t && aMin(t.desde) >= 0 && aMin(t.hasta) > aMin(t.desde))
+      .map((t) => ({ desde: hhmm(t.desde), hasta: hhmm(t.hasta) }));
+    if (tramos.length) alguno = true;
+    salida[llave] = tramos.length ? tramos : null;
+  }
+  return alguno ? salida : null;
+}
+
 function ventanaBot(r) {
   const v = r.horario_bot;
   const negocio = r.horario || {};
@@ -484,6 +564,14 @@ export function aplicarAPerfil(form, perfil) {
     p.persona.cuando_escalar = [...new Set([...marcadas, ...(extra ? [extra] : [])])];
   }
 
+  // El horario de la AGENDA, que no es el del bot. Va tal cual porque la
+  // pregunta tiene la misma forma que `citas.horario`: se pregunta por dia
+  // justamente para no tener que adivinar nada aqui.
+  if (p.citas) {
+    const agenda = horarioSemana(r.horario_agenda);
+    if (agenda) p.citas.horario = agenda;
+  }
+
   const ventana = ventanaBot(r);
   if (ventana) {
     p.operacion.horario.inicio = ventana.inicio;
@@ -502,10 +590,10 @@ export function aplicarAPerfil(form, perfil) {
     }
   }
 
-  // Los numeros del equipo: el bot no los trata como clientes y les avisa.
-  const numeros = [...texto(r.equipo).matchAll(/\+?\d[\d\s-]{7,}\d/g)]
-    .map((m) => m[0].replace(/[\s-]/g, ''));
-  if (numeros.length) p.alertas.numeros_extra = [...new Set(numeros)];
+  // Los numeros del equipo ya NO salen de aqui: la pregunta es una tabla y cada
+  // fila se escribe como ficha en equipo.json (ver `fichasEquipo`), que es de
+  // donde el motor los lee. `numeros_extra` queda para quien no esta en el
+  // padron pero igual quiere el aviso.
   const preguntar = [...texto(r.avisos).matchAll(/\+?\d[\d\s-]{7,}\d/g)]
     .map((m) => m[0].replace(/[\s-]/g, ''));
   if (preguntar.length) p.alertas.numeros_pregunta = [...new Set(preguntar)];
@@ -617,6 +705,15 @@ function formatearValor(pregunta, valor, archivos = []) {
     if (!Number.isInteger(valor.desde) || !Number.isInteger(valor.hasta)) return [];
     const cruza = valor.desde > valor.hasta;
     return [`De ${hh(valor.desde)} a ${hh(valor.hasta)}${cruza ? ' del dia siguiente' : ''}`];
+  }
+  if (pregunta.tipo === 'horario_semana') {
+    const etiquetas = new Map(DIAS_SEMANA);
+    return DIAS_SEMANA.map(([llave]) => {
+      const tramos = Array.isArray(valor[llave]) ? valor[llave] : [];
+      const util = tramos.filter((t) => t && t.desde && t.hasta);
+      return `- ${etiquetas.get(llave)}: `
+        + (util.length ? util.map((t) => `${t.desde}-${t.hasta}`).join(' y ') : 'no se agenda');
+    });
   }
   if (pregunta.tipo === 'horario') {
     const h = valor;

@@ -71,6 +71,8 @@ export type EstadoBot = {
   perfil_leido_en?: string;
   canal?: { canal: string; estado_sesion: string | null; congelado: boolean; acuses_vistos: number; envios_ultima_hora: number };
   salientes_ultima_hora?: number;
+  /** El formulario de onboarding del que salio este cliente, si lo hubo. */
+  formularioId?: string | null;
 };
 
 export type Simulacion = {
@@ -256,6 +258,32 @@ export type DetalleForm = {
   resumen: ResumenForm;
 };
 
+// ---- asesores del cliente ----
+
+export type RolAsesor = 'dueño' | 'supervisor' | 'asesor';
+export type AvisosAsesor = 'todo' | 'escalada' | 'ninguno';
+
+export type Asesor = {
+  id: string;
+  nombre: string;
+  email: string | null;
+  telefono: string;
+  rol: RolAsesor;
+  nivel: number;
+  temas: string[];
+  avisos: AvisosAsesor;
+  agente_id: number | null;
+  chatwootRol: 'administrator' | 'agent' | null;
+  confirmado: boolean | null;
+  ultimoIngreso: string | null;
+  /** Es agente pero no está en ningún inbox: entraría a un Chatsuite vacío. */
+  sinInboxes: boolean;
+  /** Está en el padrón del bot pero no puede entrar a Chatsuite. */
+  sinAcceso: boolean;
+  /** Entra a Chatsuite pero el bot no lo conoce: lo trataría como cliente. */
+  sinFicha: boolean;
+};
+
 export const api = {
   sistema: () => pedir<Sistema>('/api/sistema'),
   tenants: () => pedir<Tenant[]>('/api/tenants'),
@@ -349,6 +377,27 @@ export const api = {
         persona_generada: string; modo_experto: boolean;
       }>(`/api/bot/prompt?slug=${encodeURIComponent(slug)}`),
     accion: (slug: string, accion: string) => enviar<{ job: string }>('/api/bot/accion', { slug, accion }),
+  },
+
+  asesores: {
+    listar: (slug: string) =>
+      pedir<{ equipo: Asesor[]; inboxes: number }>(`/api/asesores?slug=${encodeURIComponent(slug)}`),
+    // La clave en claro sale UNA vez y no vuelve a salir: Chatwoot la guarda
+    // cifrada. Si se pierde, se reinicia.
+    crear: (slug: string, datos: Record<string, unknown>) =>
+      enviar<{ asesor: Asesor; clave: string; enganchado: boolean; yaExistia: boolean }>(
+        '/api/asesores', { slug, ...datos },
+      ),
+    guardar: (slug: string, id: string, cambios: Record<string, unknown>) =>
+      pedir<{ asesor: Asesor }>('/api/asesores', {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ slug, id, ...cambios }),
+      }),
+    clave: (slug: string, id: string) =>
+      enviar<{ clave: string }>('/api/asesores/clave', { slug, id }),
+    eliminar: (slug: string, id: string, soloFicha = false) =>
+      enviar<{ ok: true }>('/api/asesores/eliminar', { slug, id, soloFicha }),
   },
 
   whatsapp: {

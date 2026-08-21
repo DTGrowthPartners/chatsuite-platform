@@ -174,6 +174,73 @@ async def a_humano(conv_id: int) -> None:
         r.raise_for_status()
 
 
+async def asignar(conv_id: int, agente_id: int) -> None:
+    """Le pone dueño a la conversación.
+
+    Va con el token de LECTURA (el de un usuario), no con el del AgentBot: al
+    bot Chatsuite le responde 401 en todo lo que no sea mandar mensajes, igual
+    que en `a_pendiente` y en `etiquetar`.
+    """
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as c:
+        r = await c.post(
+            f"{_base()}/conversations/{conv_id}/assignments",
+            headers=_headers_lectura(),
+            json={"assignee_id": int(agente_id)},
+        )
+        r.raise_for_status()
+
+
+async def abiertas_por_agente() -> dict[int, int]:
+    """Cuántas conversaciones abiertas tiene encima cada agente.
+
+    Es la base del reparto: se le pasa el chat al que menos tenga. Se cuenta
+    `open` y no `pending` porque `pending` es la cola del BOT — contarla haría
+    que la carga del bot pareciera carga de un humano.
+    """
+    carga: dict[int, int] = {}
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as c:
+        r = await c.get(
+            f"{_base()}/conversations",
+            headers=_headers_lectura(),
+            params={"status": "open", "sort_by": "last_activity_at_desc"},
+        )
+        r.raise_for_status()
+        for conv in (r.json().get("data") or {}).get("payload", []):
+            quien = ((conv.get("meta") or {}).get("assignee") or {}).get("id")
+            if quien:
+                carga[int(quien)] = carga.get(int(quien), 0) + 1
+    return carga
+
+
+async def asignar_al_menos_cargado(conv_id: int, candidatos: list[dict]) -> dict | None:
+    """Reparte entre los candidatos y devuelve a quién le tocó.
+
+    Por carga y no por turno rotatorio: un contador que rota se descuadra en
+    cuanto alguien se enferma o entra a mitad del día y ya no se recupera,
+    mientras que mirar quién tiene menos encima se corrige solo.
+
+    Todo esto es best-effort. Si Chatsuite no contesta se asigna igual al
+    primero, y si tampoco se puede asignar se deja la conversación en la cola
+    general: perder el reparto es un problema, pero dejar a un cliente sin
+    handoff es otro mucho peor.
+    """
+    if not candidatos:
+        return None
+    try:
+        carga = await abiertas_por_agente()
+    except Exception:
+        log.exception("no se pudo leer la carga de los asesores; se asigna al primero")
+        carga = {}
+
+    elegido = min(candidatos, key=lambda m: carga.get(int(m.get("agente_id") or 0), 0))
+    try:
+        await asignar(conv_id, int(elegido["agente_id"]))
+    except Exception:
+        log.exception("conv %s: no se pudo asignar a %s", conv_id, elegido.get("nombre"))
+        return None
+    return elegido
+
+
 async def etiquetar(conv_id: int, etiquetas: list[str]) -> None:
     """Agrega etiquetas SIN pisar las que ya tenga.
 

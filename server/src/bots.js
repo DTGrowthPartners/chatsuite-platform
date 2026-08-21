@@ -10,6 +10,7 @@
 // motor relee al cambiar el mtime: guardar desde el panel aplica al instante,
 // sin reiniciar nada.
 import { execFileSync } from 'node:child_process';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -241,7 +242,7 @@ function recortarAgenda(horario, inicio, fin) {
  * Se hace despues de sembrarPerfil para que el formulario mande sobre lo que se
  * eligio a mano en el modal: el cliente conoce su negocio mejor que nosotros.
  */
-async function volcarFormulario(slug, formularioId, log) {
+async function volcarFormulario(slug, formularioId, log, { pisarBriefing = false } = {}) {
   const form = formularios.leer(formularioId);
   if (!form) {
     log(`AVISO: el formulario ${formularioId} ya no existe; el bot queda con lo del alta`);
@@ -256,13 +257,49 @@ async function volcarFormulario(slug, formularioId, log) {
 
   // No se pisa un negocio.md que ya tenga contenido: reintentar un alta no puede
   // borrar lo que alguien escribio a mano entre un intento y otro.
+  //
+  // `pisarBriefing` es la excepcion, y existe porque sin ella el briefing se
+  // congelaba para siempre en lo que el cliente hubiera contestado el dia del
+  // alta: terminaba el formulario despues y el bot no se enteraba nunca, sin
+  // ningun aviso. Solo lo activa el boton de «volver a volcar», que avisa de lo
+  // que se pierde antes de llamar.
   const actual = String(leerDato(slug, 'negocio.md') || '').trim();
-  if (actual) {
+  if (actual && !pisarBriefing) {
     log('negocio.md ya tenia contenido; el briefing NO se escribio encima');
   } else {
     escribirDato(slug, 'negocio.md', formularios.briefing(form));
     const a = formularios.avance(form.tipoBot, form.respuestas, form.adjuntos);
     log(`Briefing en negocio.md: ${a.hechas} respuestas, ${a.criticasHechas}/${a.criticas} criticas`);
+  }
+
+  // El equipo que el cliente escribio en el formulario, como fichas del bot.
+  // Se FUSIONA por telefono en vez de reemplazar: entre el alta y un revolcado
+  // pueden haberse dado de alta asesores desde el panel —con su usuario de
+  // Chatsuite y su agente_id— y pisarlos les quitaria el acceso sin avisar.
+  const fichas = formularios.fichasEquipo(form);
+  if (fichas.length) {
+    const tel = (x) => String(x?.telefono || '').replace(/[^0-9]/g, '');
+    const actuales = leerDato(slug, 'equipo.json') || [];
+    const porTelefono = new Map(actuales.filter((x) => tel(x)).map((x) => [tel(x), x]));
+    let nuevas = 0;
+    for (const ficha of fichas) {
+      const previa = porTelefono.get(ficha.telefono);
+      if (previa) {
+        // Lo del formulario manda sobre el nombre y el rol; lo que solo existe
+        // en el panel —el usuario de Chatsuite— se conserva.
+        Object.assign(previa, {
+          nombre: ficha.nombre || previa.nombre,
+          rol: ficha.rol,
+          email: previa.email || ficha.email,
+        });
+      } else {
+        actuales.push({ ...ficha, id: crypto.randomBytes(4).toString('hex') });
+        nuevas += 1;
+      }
+    }
+    escribirDato(slug, 'equipo.json', actuales);
+    log(`Equipo del formulario: ${fichas.length} persona(s), ${nuevas} nueva(s). `
+      + 'Todavia sin acceso a Chatsuite: dales usuario desde la pestaña Equipo.');
   }
 
   const adjuntos = Object.values(form.adjuntos || {}).flat();
@@ -271,6 +308,28 @@ async function volcarFormulario(slug, formularioId, log) {
   }
 
   await formularios.marcarUsado(formularioId, slug);
+}
+
+/**
+ * Vuelve a traer el formulario de onboarding sobre un bot que ya existe.
+ *
+ * Es lo que permite dar de alta a un cliente que contesto a medias: termina el
+ * formulario despues y con esto el bot se pone al dia. Sin esto, el briefing
+ * quedaba congelado en la foto del dia del alta.
+ *
+ * Reescribe el briefing entero y vuelve a aplicar el formulario sobre el
+ * perfil, asi que se lleva por delante lo que se haya escrito a mano en esos
+ * dos sitios. Quien llama tiene que haberlo advertido.
+ */
+export async function revolcarFormulario(slug, log) {
+  const tenant = obtener(slug);
+  if (!tenant) throw new Error('no existe');
+  const formularioId = tenant.botAlAlta?.formularioId;
+  if (!formularioId) throw new Error('este cliente no se dio de alta desde un formulario');
+  if (!leerPerfil(slug)) throw new Error('este cliente todavia no tiene bot');
+
+  await volcarFormulario(slug, formularioId, log, { pisarBriefing: true });
+  log('Listo. El bot relee el perfil solo; no hace falta reiniciarlo.');
 }
 
 export function sembrarPerfil(slug, opciones = {}) {

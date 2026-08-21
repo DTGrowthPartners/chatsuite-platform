@@ -9,7 +9,7 @@
 // nosotros. Lo que se esconde aquí el servidor lo rechaza igual: esta lista es
 // para no confundir, no es el control.
 import { useCallback, useEffect, useState } from 'react';
-import { AlertTriangle, Save, Tags } from 'lucide-react';
+import { AlertTriangle, RefreshCw, Save, Tags } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { api, confirmarAplicado, type EstadoBot, type EstadoWhatsapp, type PerfilBot } from '@/api';
@@ -20,6 +20,7 @@ import { FormOperacion, FormPersona } from '@/componentes/bot/formularios';
 import { EditorCatalogo, EditorLista, EditorNegocio } from '@/componentes/bot/listas';
 import { AjustesCatalogo, AjustesDomicilios } from '@/componentes/bot/AjustesTienda';
 import { FormAgenda } from '@/componentes/bot/Agenda';
+import { Asesores } from '@/componentes/bot/Asesores';
 import { Metricas } from '@/componentes/bot/Metricas';
 import { Prompt } from '@/componentes/bot/Prompt';
 import { Whatsapp, conectado } from '@/componentes/bot/Whatsapp';
@@ -205,7 +206,16 @@ export function ConfiguradorBot({
         {pestana === 'simulador' ? <Simulador slug={slug} /> : null}
         {pestana === 'metricas' ? <Metricas slug={slug} /> : null}
         {pestana === 'persona' ? <FormPersona perfil={perfil} alCambiar={setPerfil} /> : null}
-        {pestana === 'negocio' ? <EditorNegocio slug={slug} /> : null}
+        {pestana === 'negocio' ? (
+          <>
+            {/* Solo en nuestro panel: reescribe el briefing entero, y eso no es
+                algo que el cliente deba poder hacerle a su propio texto. */}
+            {!esCliente && estado?.formularioId ? (
+              <RevolcarFormulario slug={slug} alJob={alJob} alHecho={() => setPestana('negocio')} />
+            ) : null}
+            <EditorNegocio slug={slug} key={pestana} />
+          </>
+        ) : null}
         {pestana === 'catalogo' ? (
           <>
             <AjustesCatalogo slug={slug} perfil={perfil} alCambiar={setPerfil} />
@@ -255,19 +265,7 @@ export function ConfiguradorBot({
             />
           </>
         ) : null}
-        {pestana === 'equipo' ? (
-          <EditorLista
-            slug={slug}
-            archivo="equipo.json"
-            titulo="Equipo — a estos el bot no los atiende como clientes, y a ellos les avisa"
-            vacio={{ nombre: '', telefono: '', rol: '' }}
-            columnas={[
-              { llave: 'nombre', titulo: 'Nombre' },
-              { llave: 'telefono', titulo: 'Teléfono con indicativo' },
-              { llave: 'rol', titulo: 'Rol' },
-            ]}
-          />
-        ) : null}
+        {pestana === 'equipo' ? <Asesores slug={slug} /> : null}
         {pestana === 'operacion' && !esCliente ? <FormOperacion perfil={perfil} alCambiar={setPerfil} /> : null}
       </div>
 
@@ -294,5 +292,55 @@ export function ConfiguradorBot({
         </div>
       ) : null}
     </>
+  );
+}
+
+
+/**
+ * Trae otra vez el formulario de onboarding sobre un bot que ya existe.
+ *
+ * Existe porque el briefing se escribe UNA vez, en el alta: un cliente que
+ * contestaba a medias dejaba al bot congelado en esa foto, y cuando terminaba
+ * el formulario dias despues nadie se enteraba —no habia error ni aviso en
+ * ninguna parte—. Con esto, dar de alta temprano deja de tener castigo.
+ *
+ * Se avisa de lo que se pierde antes de llamar: el servidor no vuelve a
+ * preguntar.
+ */
+function RevolcarFormulario({
+  slug, alJob, alHecho,
+}: { slug: string; alJob?: (id: string) => void; alHecho: () => void }) {
+  const [ocupado, setOcupado] = useState(false);
+
+  async function revolcar() {
+    const aviso = 'Se reescribe el briefing con lo que el cliente haya contestado '
+      + 'desde el alta, y se vuelve a aplicar el formulario al perfil. Lo que hayas '
+      + 'escrito a mano aqui se pierde. ¿Seguimos?';
+    if (!window.confirm(aviso)) return;
+    setOcupado(true);
+    try {
+      const { job } = await api.bot.accion(slug, 'revolcar');
+      alJob?.(job);
+      toast.success('trayendo el formulario', {
+        description: 'el bot relee el perfil solo; no hay que reiniciarlo',
+      });
+      alHecho();
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setOcupado(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-dashed p-3">
+      <p className="text-sm text-muted-foreground">
+        Este cliente salió de un formulario de onboarding. Si el dueño siguió
+        contestando después del alta, tráelo otra vez.
+      </p>
+      <Button size="sm" variant="outline" disabled={ocupado} onClick={() => void revolcar()}>
+        <RefreshCw className="size-3.5" /> {ocupado ? 'trayendo…' : 'Volver a volcar'}
+      </Button>
+    </div>
   );
 }
