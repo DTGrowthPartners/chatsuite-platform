@@ -26,6 +26,9 @@ export function DialogoWhatsapp({
   const [estado, setEstado] = useState<EstadoWhatsapp | null>(null);
   const [qr, setQr] = useState<Qr | null>(null);
   const [cargando, setCargando] = useState(false);
+  // Por defecto SI: casi siempre se conecta un numero que ya venia atendiendo,
+  // y perder su historial es la clase de error que no se puede deshacer.
+  const [conHistorial, setConHistorial] = useState(true);
   const temporizador = useRef<number | null>(null);
 
   const slug = tenant?.slug;
@@ -88,13 +91,31 @@ export function DialogoWhatsapp({
             <p className="text-xs text-muted-foreground">
               Ocupa unos 190&nbsp;MB de RAM. Es propio del cliente, no compartido.
             </p>
+            {/* Decision de un solo tiro: la importacion corre al escanear y nunca
+                mas. Se pregunta aqui —y no despues— porque cambiarla obliga a
+                desconectar el numero y volver a escanear. */}
+            <label className="flex max-w-sm items-start gap-2 rounded-lg border p-3 text-left">
+              <input
+                type="checkbox"
+                className="mt-0.5"
+                checked={conHistorial}
+                onChange={(e) => setConHistorial(e.target.checked)}
+              />
+              <span className="grid gap-0.5">
+                <span className="text-sm font-medium">Traer los chats que ya tiene el teléfono</span>
+                <span className="text-xs text-muted-foreground">
+                  Se importan contactos y conversaciones al escanear. Solo pasa esa vez:
+                  después, recuperarlo obliga a desconectar y volver a escanear.
+                </span>
+              </span>
+            </label>
             <Button
               disabled={cargando}
               onClick={async () => {
                 if (!slug) return;
                 setCargando(true);
                 try {
-                  const { job } = await api.whatsapp.preparar(slug);
+                  const { job } = await api.whatsapp.preparar(slug, conHistorial);
                   alJob(job, `WhatsApp de ${tenant?.nombre}`);
                   alCerrar();
                 } catch (err) { toast.error((err as Error).message); }

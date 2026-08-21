@@ -661,14 +661,25 @@ const rutas = {
   // --- WhatsApp del cliente (Evolution + QR) ---------------------------------
 
   'POST /api/whatsapp/preparar': async (req, res) => {
-    const { slug } = await leerCuerpo(req);
+    const { slug, importarHistorial } = await leerCuerpo(req);
     const tenant = obtener(slug);
     if (!tenant) return json(res, 404, { error: 'no existe' });
+    // El historial es una decision de UN SOLO TIRO: la importacion corre al
+    // conectar y nunca mas. Antes esto estaba fijado en `false` aqui dentro, asi
+    // que quien preparaba el canal desde el panel escaneaba y se quedaba sin
+    // historial sin haber elegido nada; recuperarlo obliga a desconectar,
+    // rehacer la instancia y volver a escanear.
     const job = enSegundoPlano(slug, `WhatsApp de ${tenant.nombre}`, async (log) => {
       await evolution.preparar(slug, log);
       await evolution.crearInstancia(slug, log, {
-        importarHistorial: false, nombreInbox: 'WhatsApp',
+        importarHistorial: Boolean(importarHistorial), nombreInbox: 'WhatsApp',
       });
+      if (importarHistorial) {
+        log('Se importaran los chats y contactos del telefono al escanear.');
+      } else {
+        log('SIN historial: entraran solo los mensajes nuevos. Cambiarlo despues '
+          + 'obliga a desconectar y volver a escanear.');
+      }
       log('');
       log('Ahora escanea el QR desde el panel, con el celular DEL CLIENTE.');
     });

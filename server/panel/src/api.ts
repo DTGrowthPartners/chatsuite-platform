@@ -401,7 +401,10 @@ export const api = {
   },
 
   whatsapp: {
-    preparar: (slug: string) => enviar<{ job: string }>('/api/whatsapp/preparar', { slug }),
+    // El historial se importa SOLO al conectar: si no se pide aqui, recuperarlo
+    // obliga a desconectar el numero y volver a escanear.
+    preparar: (slug: string, importarHistorial = false) =>
+      enviar<{ job: string }>('/api/whatsapp/preparar', { slug, importarHistorial }),
     estado: (slug: string) => pedir<EstadoWhatsapp>(`/api/whatsapp/estado?slug=${encodeURIComponent(slug)}`),
     qr: (slug: string) => pedir<Qr>(`/api/whatsapp/qr?slug=${encodeURIComponent(slug)}`),
     accion: (slug: string, accion: string, importarHistorial?: boolean) =>

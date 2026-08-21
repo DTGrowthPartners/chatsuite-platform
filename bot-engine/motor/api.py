@@ -24,8 +24,8 @@ from fastapi.responses import FileResponse
 
 import modulos
 
-from . import (alertas, audiencia, brain, canal, chatwoot, estado, eventos,
-               historial, humanizador, perfil as perfil_mod, plantillas)
+from . import (alertas, audiencia, brain, canal, chatwoot, comandos, estado,
+               eventos, historial, humanizador, perfil as perfil_mod, plantillas)
 from .config import DATA, secretos
 
 log = logging.getLogger("chatsuite-bot")
@@ -71,14 +71,23 @@ def _identidad(ev: dict) -> str:
     """
     sender = ev.get("sender") or {}
     conv = ev.get("conversation") or {}
+
+    # Los grupos se descartan por el `identifier`, ANTES de elegir el origen: el
+    # contacto de un grupo no tiene `phone_number` y su `contact_inbox.source_id`
+    # es un UUID, así que el JID @g.us solo aparece acá. Mirándolo después del
+    # or-chain el grupo se colaba y el bot se ponía a vender adentro.
+    identidad = sender.get("identifier") or ""
+    if identidad.endswith("@g.us") or identidad.startswith("status@"):
+        return ""  # grupos y difusiones
+
     origen = (
         sender.get("phone_number")
         or (conv.get("contact_inbox") or {}).get("source_id")
-        or sender.get("identifier")
+        or identidad
         or ""
     )
     if origen.endswith("@g.us") or origen.startswith("status@"):
-        return ""  # grupos y difusiones
+        return ""
     return origen
 
 
@@ -177,6 +186,24 @@ async def _procesar(conv_id: int, ev: dict):
             log.warning("conv %s: salientes congelados; queda pendiente", conv_id)
             eventos.registrar("no_respondio", conv_id, motivo="congelado")
             return
+
+        # 2. Órdenes del equipo. Va ANTES del filtro de audiencia a propósito:
+        #    con `audiencia: clientes` —el caso normal— el equipo queda fuera, y
+        #    es justamente el equipo quien manda las órdenes de operación. Si el
+        #    hook no reconoce el mensaje devuelve None y todo sigue igual.
+        if audiencia.es_equipo(telefono):
+            respuesta = comandos.ejecutar(texto, telefono)
+            if respuesta:
+                log.info("conv %s: comando del equipo (%s): %r", conv_id, telefono, texto[:60])
+                cuerpo, imagen = comandos.desglosar(respuesta)
+                if imagen:
+                    # Con imagen va todo en UN mensaje, el texto como pie: dos
+                    # mensajes seguidos para una sola orden se leen como ruido.
+                    await chatwoot.enviar_imagen(conv_id, imagen, cuerpo)
+                elif cuerpo:
+                    await humanizador.enviar(conv_id, cuerpo, 0, telefono)
+                eventos.registrar("comando", conv_id)
+                return
 
         # En prueba el filtro de audiencia NO aplica: ser del equipo es
         # justamente la condición para entrar, y con `audiencia: clientes` —el

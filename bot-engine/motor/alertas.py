@@ -89,10 +89,17 @@ async def _avisar_por_whatsapp(motivo: str, cliente: str, tipo: str = "") -> Non
     p = perfil_mod.actual()
     destinos = p.get("alertas.numeros_pregunta", []) if tipo == "pregunta" else []
     destinos = [estado.normalizar(n) for n in destinos] or audiencia.telefonos_equipo(tipo)
-    if not destinos:
+    # `alertas.grupos`: JIDs de grupo (…@g.us) para que el equipo monitoree en un
+    # solo lugar en vez de recibir cada uno su privado. Van sin normalizar: un
+    # JID de grupo son 18 dígitos y `telefonos_equipo` descarta lo que no tenga
+    # forma de teléfono, justamente para no mandarle plantillas a un LID.
+    grupos = [g for g in p.get("alertas.grupos", []) if str(g).endswith("@g.us")]
+    if not (destinos or grupos):
         return
 
     if canal.es_cloud():
+        if grupos:
+            log.debug("Cloud API no entrega a grupos; el aviso %s va solo a los números", tipo)
         nombre = p.get("canal.cloud_api.plantilla_alerta", "")
         if not nombre:
             log.debug("sin plantilla de alerta configurada; el aviso queda en la nota privada")
@@ -102,13 +109,13 @@ async def _avisar_por_whatsapp(motivo: str, cliente: str, tipo: str = "") -> Non
             await plantillas.enviar(numero, nombre, idioma, [motivo, cliente or "sin identificar"])
         return
 
-    # Evolution: texto directo a cada número del equipo.
+    # Evolution: texto directo a cada número del equipo, y a los grupos.
     url = p.get("canal.evolution.url") or secretos.evolution_url
     instancia = p.get("canal.evolution.instancia", "")
     if not (url and instancia):
         return
     cuerpo = f"🤖 {motivo}\n\nCliente: {cliente or 'sin identificar'}"
-    for numero in destinos:
+    for numero in destinos + grupos:
         try:
             async with httpx.AsyncClient(timeout=httpx.Timeout(20.0)) as c:
                 await c.post(
