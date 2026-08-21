@@ -38,7 +38,9 @@ cae, se cae uno solo.
   data/
     negocio.md          la fuente de verdad del negocio
     catalogo.json       [{id, nombre, precio, imagen, ...atributos libres}]
-    catalogo-fotos/     las imágenes
+    catalogo-fotos/     las imágenes de los productos (la tool solo existe si hay archivos)
+    fotos.json          [{clave, archivo, titulo, cuando}] · fotos FIJAS del negocio
+    fotos/              los archivos de fotos.json (flyer, mapa, fachada…)
     domicilios.json     [{zona, precio}]   · precio 0 = gratis, null = por confirmar
     respuestas.json     [{id, titulo, contenido, uso: datos|referencia}]
     equipo.json         [{nombre, telefono, rol}]

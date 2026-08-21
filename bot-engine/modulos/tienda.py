@@ -118,6 +118,19 @@ class Modulo(Base):
             _leer(RUTA_DOMICILIOS, [])
         )
 
+    def _hay_fotos(self) -> bool:
+        """¿Hay al menos UNA foto de producto en disco?
+
+        La tool no se ofrece si no la hay: con el catálogo cargado pero la
+        carpeta vacía, el modelo prometía fotos que no salían nunca y el fallo
+        solo quedaba en un evento que no mira nadie.
+        """
+        for prod in _leer(RUTA_CATALOGO, []):
+            archivo = str(prod.get("imagen") or "")
+            if archivo and (FOTOS / archivo).exists():
+                return True
+        return False
+
     def _pdf_activo(self, p) -> bool:
         return bool(self._cfg(p).get("pdf", {}).get("activo"))
 
@@ -171,7 +184,7 @@ class Modulo(Base):
             "input_schema": {"type": "object", "properties": propiedades, "required": ["detalle"]},
         }]
 
-        if _leer(RUTA_CATALOGO, []):
+        if self._hay_fotos():
             tope = self._fotos_por_tanda(p)
             tools.append({
                 "name": "enviar_fotos_catalogo",
@@ -227,7 +240,7 @@ class Modulo(Base):
                 "Estos son los productos disponibles. NO inventes productos que no estén en "
                 "esta lista, ni precios donde diga pendiente."
                 + (" Usa enviar_fotos_catalogo con los id cuando el cliente quiera ver."
-                   if FOTOS.exists() else "")
+                   if self._hay_fotos() else "")
                 + "\n\n" + "\n".join(lineas)
             )
 
